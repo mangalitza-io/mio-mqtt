@@ -1,80 +1,13 @@
-from select import select
-
 from aio_mqtt.types import DictStrObject
 
-
-def encode_string(__data: str) -> bytes:
-    b_data: bytes = __data.encode("utf-8")
-    return len(b_data).to_bytes(length=2, byteorder="big") + b_data
-
-
-def encode_string_arr(__data: str) -> bytearray:
-    b_data: bytes = __data.encode("utf-8")
-    res_arr: bytearray = bytearray(2 + len(b_data))
-    res_arr[0:2] = len(b_data).to_bytes(length=2, byteorder="big")
-    res_arr[2:] = b_data
-    return res_arr
-
-
-def encode_one_byte(__int: int) -> bytes:
-    return __int.to_bytes(1, byteorder="big")
-
-
-def encode_two_byte(__int: int) -> bytes:
-    return __int.to_bytes(2, byteorder="big")
-
-
-def encode_four_byte(__int: int) -> bytes:
-    return __int.to_bytes(4, byteorder="big")
-
-
-def encode_remaining_length(__len: int) -> bytes:
-    arr: bytearray = bytearray()
-    while True:
-        encoded_byte: int = __len % 128
-        __len //= 128
-        if 0 < __len:
-            encoded_byte |= 128
-        arr.append(encoded_byte)
-        if 0 >= __len:
-            break
-    return bytes(arr)
-
-
-class WillMessage:
-    ALLOWED_QOS: set[int] = {0, 1, 2}
-
-    def __init__(
-        self,
-        topic: str,
-        message: str,
-        qos: int = 0,
-        retain: bool = False,
-        properties: DictStrObject | None = None,
-    ) -> None:
-        self.topic: str = topic
-        self.message: str = message
-        self.qos: int = qos
-        self.retain: bool = retain
-        self.properties: DictStrObject
-        if properties is None:
-            self.properties = {}
-        else:
-            self.properties = properties
-
-        if self.qos not in self.ALLOWED_QOS:
-            raise ValueError()
-
-    @property
-    def b_topic(self) -> bytes:
-        return encode_string(self.topic)
-
-    @property
-    def b_message(self) -> bytes:
-        return encode_string(self.message)
-
-
-# ----- # ----- # ----- # ----- # ----- #
+from .codec import (
+    encode_four_byte,
+    encode_one_byte,
+    encode_remaining_length,
+    encode_string,
+    encode_two_byte,
+)
+from .will import WillMessage
 
 
 class Packet:
@@ -99,7 +32,6 @@ class ConnectPacket(Packet):
         will_message: WillMessage | None = None,
     ) -> bytes:
         packet_type: int = cls.TYPE << 4
-
         protocol_version: bytes = encode_one_byte(5)
 
         connect_flags: int = 0b00000000
@@ -124,10 +56,8 @@ class ConnectPacket(Packet):
         if properties is not None:
             # TODO
             pass
-
-        b_will_properties: bytes = encode_one_byte(
-            0
-        )  # TODO fix in the future cause its bad
+        # TODO fix in the future cause its bad
+        b_will_properties: bytes = encode_one_byte(0)
         if will_message is not None and will_message.properties is not None:
             # TODO
             pass
