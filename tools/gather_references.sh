@@ -2,11 +2,11 @@
 
 set -eux
 
-
-readonly BASE_DIR="${PWD}/references"
+readonly BASE_DIR="$(dirname "${PWD}")"
+readonly REFERENCE_DIR="${BASE_DIR}/references"
 
 gather_repositories() {
-    local base_repo_dir="${BASE_DIR}/projects"
+    local base_repo_dir="${REFERENCE_DIR}/projects"
 
     local -A repositories=(
     [https://github.com/eclipse-paho/paho.mqtt.python]=eclipse-paho_paho.mqtt.python
@@ -32,7 +32,7 @@ gather_repositories() {
 }
 
 gather_docs() {
-    local base_docs_dir="${BASE_DIR}/docs"
+    local base_docs_dir="${REFERENCE_DIR}/docs"
     local docs_urls=(
         "https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.pdf"
         "https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html"
@@ -56,8 +56,8 @@ gather_docs() {
 
 
 main() {
-    if ! [ -d "${BASE_DIR}" ];then
-      mkdir -p "${BASE_DIR}"
+    if ! [ -d "${REFERENCE_DIR}" ];then
+      mkdir -p "${REFERENCE_DIR}"
     fi
     gather_repositories
     gather_docs
