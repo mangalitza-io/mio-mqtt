@@ -1,6 +1,8 @@
-from aio_mqtt.types import DictStrObject, Slots
+from aio_mqtt.types import All, DictStrObject, Slots
 
 from .codec import encode_string
+
+__all__: All = ("WillMessage",)
 
 
 class WillMessage:
