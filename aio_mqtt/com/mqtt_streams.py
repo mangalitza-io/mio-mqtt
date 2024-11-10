@@ -5,8 +5,10 @@ from typing import TypeAlias
 ProtocolFactory: TypeAlias = Callable[[], Protocol]
 
 
-class MqttTCP:
+class MqttStreamClient:
     def __init__(self) -> None:
+        self._is_open: bool = False
+
         self._loop: AbstractEventLoop = None  # type: ignore[assignment]
         self._s_reader: StreamReader = None  # type: ignore[assignment]
         self._s_writer: StreamWriter = None  # type: ignore[assignment]
@@ -29,10 +31,14 @@ class MqttTCP:
         return value
 
     async def _read_loop(self) -> None:
-        ...
+        while True:
+            fixed_header: int = (await self._s_reader.read(1))[0]
+
+            packet_type = (fixed_header >> 4) & 0x0F
 
     async def send_connect(self) -> None:
-        ...
+        if self._is_open is False:
+            await self.open()
 
     async def send_publish(self) -> None:
         ...
