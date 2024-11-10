@@ -2,7 +2,7 @@ from asyncio import AbstractEventLoop
 from ssl import SSLContext
 from typing import Any, TypeAlias
 
-All: TypeAlias = list[str]
+All: TypeAlias = tuple[str, ...]
 Slots: TypeAlias = tuple[str, ...]
 DictStrObject: TypeAlias = dict[str, object]
 

@@ -1,15 +1,33 @@
 from abc import ABCMeta, abstractmethod
 
-from aio_mqtt.types import DictStrObject
+from aio_mqtt.types import All, DictStrObject
 
 from .codec import (
-    encode_four_byte,
     encode_one_byte,
     encode_remaining_length,
     encode_string,
     encode_two_byte,
 )
 from .will import WillMessage
+
+__all__: All = (
+    "Packet",
+    "ConnectPacket",
+    "ConnAckPacket",
+    "PublishPacket",
+    "PubAckPacket",
+    "PubRecPacket",
+    "PubRelPacket",
+    "PubCompPacket",
+    "SubscribePacket",
+    "SubAckPacket",
+    "UnSubscribePacket",
+    "UnSubAckPacket",
+    "PingReqPacket",
+    "PingRespPacket",
+    "DisconnectPacket",
+    "AuthPacket",
+)
 
 
 class Packet(metaclass=ABCMeta):
@@ -50,7 +68,9 @@ class ConnectPacket(Packet):
         self._will_message: WillMessage | None = will_message
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":  # type: ignore
+    def from_bytes(  # type: ignore[empty-body]
+        cls, fixed_byte: int, packet_body: bytes
+    ) -> "Packet":
         # TODO fix this.
         pass
 
@@ -127,6 +147,9 @@ class ConnAckPacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class PublishPacket(Packet):
     TYPE: int = 3
@@ -134,6 +157,9 @@ class PublishPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
 
 
 class PubAckPacket(Packet):
@@ -143,6 +169,9 @@ class PubAckPacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class PubRecPacket(Packet):
     TYPE: int = 5
@@ -150,6 +179,9 @@ class PubRecPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
 
 
 class PubRelPacket(Packet):
@@ -159,6 +191,9 @@ class PubRelPacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class PubCompPacket(Packet):
     TYPE: int = 7
@@ -166,6 +201,9 @@ class PubCompPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
 
 
 class SubscribePacket(Packet):
@@ -175,6 +213,9 @@ class SubscribePacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class SubAckPacket(Packet):
     TYPE: int = 9
@@ -182,6 +223,9 @@ class SubAckPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
 
 
 class UnSubscribePacket(Packet):
@@ -191,6 +235,9 @@ class UnSubscribePacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class UnSubAckPacket(Packet):
     TYPE: int = 11
@@ -198,6 +245,9 @@ class UnSubAckPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
 
 
 class PingReqPacket(Packet):
@@ -207,6 +257,9 @@ class PingReqPacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class PingRespPacket(Packet):
     TYPE: int = 13
@@ -214,6 +267,9 @@ class PingRespPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
 
 
 class DisconnectPacket(Packet):
@@ -223,6 +279,9 @@ class DisconnectPacket(Packet):
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
 
+    def to_bytes(self) -> bytes:
+        return b""
+
 
 class AuthPacket(Packet):
     TYPE: int = 14
@@ -230,3 +289,6 @@ class AuthPacket(Packet):
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytes) -> "Packet":
         return cls()
+
+    def to_bytes(self) -> bytes:
+        return b""
