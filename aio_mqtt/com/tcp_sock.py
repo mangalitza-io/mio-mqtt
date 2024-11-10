@@ -11,7 +11,7 @@ from collections.abc import Callable
 from socket import AddressFamily, SocketKind, socket
 from typing import TypeAlias
 
-from aio_mqtt.types import Address, Slots, SockOpts, All
+from aio_mqtt.types import Address, All, Slots, SockOpts
 
 __all__: All = [
     "ProtocolFactory",
@@ -98,7 +98,7 @@ class _SocketOpts:
     @staticmethod
     def _so_lowat() -> SockOpts:
         try:
-            from socket import SOL_SOCKET, SO_RCVLOWAT, SO_SNDLOWAT
+            from socket import SO_RCVLOWAT, SO_SNDLOWAT, SOL_SOCKET
         except ImportError:
             raise ImportError()
         return (
