@@ -11,14 +11,16 @@ from collections.abc import Callable
 from socket import AddressFamily, SocketKind, socket
 from typing import TypeAlias
 
+from aio_mqtt.errors import BASE_EXCEPTION
 from aio_mqtt.types import Address, All, Slots, SockOpts
 
-__all__: All = [
+__all__: All = (
     "ProtocolFactory",
+    "TcpSocket",
     "TCPInetSocket",
     "TCPInet6Socket",
     "TCPUnixSocket",
-]
+)
 ProtocolFactory: TypeAlias = Callable[[], Protocol]
 
 
@@ -107,7 +109,7 @@ class _SocketOpts:
         )
 
 
-class _TcpSocket(socket, metaclass=ABCMeta):
+class TcpSocket(socket, metaclass=ABCMeta):
     FAMILY: AddressFamily
     TYPE: SocketKind = SocketKind.SOCK_STREAM
     PROTO: int = 0
@@ -122,8 +124,8 @@ class _TcpSocket(socket, metaclass=ABCMeta):
         for sock_opt in self.SOCK_OPTS:
             try:
                 self.setsockopt(*sock_opt)
-            except (ValueError, TypeError):
-                raise OSError()
+            except OSError:
+                continue
 
     async def connect_async(
         self, __address: Address, loop: AbstractEventLoop
@@ -158,7 +160,7 @@ class _TcpSocket(socket, metaclass=ABCMeta):
         return reader, writer
 
 
-class _TcpIPSocket(_TcpSocket, metaclass=ABCMeta):
+class _TcpIPSocket(TcpSocket, metaclass=ABCMeta):
     __slots__: Slots = tuple()
 
     async def create_connection(
@@ -196,7 +198,7 @@ class TCPInet6Socket(_TcpIPSocket):
     __slots__: Slots = tuple()
 
 
-class TCPUnixSocket(_TcpSocket):
+class TCPUnixSocket(TcpSocket):
     FAMILY: AddressFamily = AddressFamily.AF_UNIX
     __slots__: Slots = tuple()
 
