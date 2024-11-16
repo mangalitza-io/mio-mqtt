@@ -1,7 +1,5 @@
 from aio_mqtt.types import All, DictStrObject, Slots
 
-from .codec import encode_string
-
 __all__: All = ("WillMessage",)
 
 
@@ -38,11 +36,3 @@ class WillMessage:
 
         if self.qos not in self.ALLOWED_QOS:
             raise ValueError()
-
-    @property
-    def b_topic(self) -> bytes:
-        return encode_string(self.topic)
-
-    @property
-    def b_message(self) -> bytes:
-        return encode_string(self.message)
