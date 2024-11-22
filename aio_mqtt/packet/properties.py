@@ -1,9 +1,11 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Type, TypeAlias
 
 from aio_mqtt.packet.codec import (
     BinaryCodec,
     Codec,
+    DecodeError,
+    EncodeError,
     FourByteCodec,
     Length,
     OneByteCodec,
@@ -12,171 +14,311 @@ from aio_mqtt.packet.codec import (
     TwoByteCodec,
     VariableByteCodec,
 )
-from aio_mqtt.types import Slots
+from aio_mqtt.types import All, Slots
 
-EncodeFunc: TypeAlias = Callable[[object], bytearray]
-DecodeFunc: TypeAlias = Callable[[bytearray], tuple[Length, object]]
+__all__: All = (
+    "PropertyID",
+    "PropertyName",
+    "PropertyNameMap",
+    "PropertyIDMap",
+    "PropertyEncoded",
+    "PropertyNameDecoded",
+    "PropertyIDDecoded",
+    "Property",
+    "PAYLOAD_FORMAT_ID",
+    "MESSAGE_EXPIRY_INTERVAL",
+    "CONTENT_TYPE",
+    "RESPONSE_TOPIC",
+    "CORRELATION_DATA",
+    "SUBSCRIPTION_IDENTIFIER",
+    "SESSION_EXPIRY_INTERVAL",
+    "ASSIGNED_CLIENT_IDENTIFIER",
+    "SERVER_KEEP_ALIVE",
+    "AUTH_METHOD",
+    "AUTH_DATA",
+    "REQUEST_PROBLEM_INFO",
+    "WILL_DELAY_INTERVAL",
+    "REQUEST_RESPONSE_INFO",
+    "RESPONSE_INFO",
+    "SERVER_REFERENCE",
+    "REASON_STRING",
+    "RECEIVE_MAXIMUM",
+    "TOPIC_ALIAS_MAXIMUM",
+    "TOPIC_ALIAS",
+    "MAX_QOS",
+    "RETAIN_AVAILABLE",
+    "USER_PROPERTY",
+    "MAXIMUM_PACKET_SIZE",
+    "WILDCARD_SUBSCRIPTION_AVAILABLE",
+    "SUB_ID_AVAILABLE",
+    "SHARED_SUBSCRIPTION_AVAILABLE",
+)
+
+_EncodeFunc: TypeAlias = Callable[[object], bytearray]
+_DecodeFunc: TypeAlias = Callable[[bytearray], tuple[Length, object]]
+
+PropertyID: TypeAlias = int
+PropertyName: TypeAlias = str
+PropertyNameMap: TypeAlias = dict[PropertyName, "Property"]
+PropertyIDMap: TypeAlias = dict[PropertyID, "Property"]
+
+PropertyEncoded: TypeAlias = tuple[Length, bytearray]
+PropertyNameDecoded: TypeAlias = dict[PropertyName, object]
+PropertyIDDecoded: TypeAlias = tuple[PropertyID, object]
 
 
 class Property:
     __slots__: Slots = (
         "identifier",
         "name",
-        "encode",
-        "decode",
+        "_encode",
+        "_decode",
     )
 
     def __init__(
         self,
-        identifier: int,
-        name: str,
+        identifier: PropertyID,
+        name: PropertyName,
         codec: Type[Codec],
     ) -> None:
-        self.identifier: int = identifier
-        self.name: str = name
-        self.encode: EncodeFunc = codec.encode
-        self.decode: DecodeFunc = codec.decode
+        self.identifier: PropertyID = identifier
+        self.name: PropertyName = name
+        self._encode: _EncodeFunc = codec.encode
+        self._decode: _DecodeFunc = codec.decode
+
+    def encode(self, __data: object) -> bytearray:
+        arr: bytearray = bytearray()
+        arr.append(self.identifier)
+        arr.extend(self._encode(__data))
+        return arr
+
+    def decode(self, __bytearray: bytearray) -> tuple[Length, object]:
+        try:
+            identifier: int = __bytearray[0]
+        except IndexError:
+            raise
+        if identifier != self.identifier:
+            raise TypeError()
+        length, obj = self._decode(__bytearray[1:])
+        return length + 1, obj
 
 
-"""
-: Property = Property(
-identifier=,
-name=,
-codec=,
-)
-"""
+class PropertyCodec:
+    __slots__: Slots = (
+        "_properties",
+        "_properties_by_name",
+        "_properties_by_id",
+    )
 
-payload_format_id: Property = Property(
+    def __init__(self, properties: Iterable[Property]) -> None:
+        self._properties: tuple[Property, ...] = tuple(properties)
+        self._properties_by_name: PropertyNameMap = {
+            prop.name: prop for prop in self._properties
+        }
+        self._properties_by_id: PropertyIDMap = {
+            prop.identifier: prop for prop in self._properties
+        }
+
+    @staticmethod
+    def _encode(
+        ref_properties: dict[object, Property],
+        properties: dict[object, object],
+    ) -> PropertyEncoded:
+        arr: bytearray = bytearray()
+        for identification, data in properties.items():
+            try:
+                prop: Property = ref_properties[identification]
+            except KeyError:
+                raise
+            try:
+                b_enc: bytearray = prop.encode(data)
+            except EncodeError:
+                raise
+            arr.extend(b_enc)
+        return len(arr), arr
+
+    def encode_by_id(self, properties: dict[int, object]) -> PropertyEncoded:
+        return self._encode(
+            ref_properties=self._properties_by_id,  # type: ignore[arg-type]
+            properties=properties,  # type: ignore[arg-type]
+        )
+
+    def encode_by_name(self, properties: dict[str, object]) -> PropertyEncoded:
+        return self._encode(
+            ref_properties=self._properties_by_name,  # type: ignore[arg-type]
+            properties=properties,  # type: ignore[arg-type]
+        )
+
+    def decode_for_name(self, b_properties: bytearray) -> PropertyNameDecoded:
+        b_length, length = VariableByteCodec.decode(b_properties)
+        try:
+            b_prop_arr: bytearray = b_properties[b_length : b_length + length]
+        except IndexError:
+            raise
+        b_prop_arr_length = len(b_prop_arr)
+        res: PropertyNameDecoded = {}
+        i: int = 0
+        while i < b_prop_arr_length:
+            prop_id: int = b_prop_arr[i]
+            try:
+                prop: Property = self._properties_by_id[prop_id]
+            except KeyError:
+                raise
+
+            try:
+                d_length: Length
+                d_val: object
+                d_length, d_val = prop.decode(b_prop_arr[i:])
+            except DecodeError:
+                raise
+            i += d_length
+            name: PropertyName = prop.name
+            try:
+                res[name]
+            except KeyError:
+                res[name] = d_val
+            else:
+                before_val: object = res[name]
+                res[name] = (
+                    before_val + (d_val,)
+                    if isinstance(before_val, tuple)
+                    else (before_val, d_val)
+                )
+
+        return res
+
+
+PAYLOAD_FORMAT_ID: Property = Property(
     identifier=0x01,
     name="payload_format_id",
     codec=OneByteCodec,
 )
-message_expiry_interval: Property = Property(
+MESSAGE_EXPIRY_INTERVAL: Property = Property(
     identifier=0x02,
     name="message_expiry_interval",
     codec=FourByteCodec,
 )
-content_type: Property = Property(
+CONTENT_TYPE: Property = Property(
     identifier=0x03,
     name="content_type",
     codec=StrCodec,
 )
-response_topic: Property = Property(
+RESPONSE_TOPIC: Property = Property(
     identifier=0x08,
     name="response_topic",
     codec=StrCodec,
 )
-correlation_data: Property = Property(
+CORRELATION_DATA: Property = Property(
     identifier=0x09,
     name="correlation_data",
     codec=BinaryCodec,
 )
-subscription_identifier: Property = Property(
+SUBSCRIPTION_IDENTIFIER: Property = Property(
     identifier=0x0B,
     name="subscription_identifier",
     codec=VariableByteCodec,
 )
-session_expiry_interval: Property = Property(
+SESSION_EXPIRY_INTERVAL: Property = Property(
     identifier=0x11,
     name="session_expiry_interval",
     codec=FourByteCodec,
 )
-assigned_client_identifier: Property = Property(
+ASSIGNED_CLIENT_IDENTIFIER: Property = Property(
     identifier=0x12,
     name="assigned_client_identifier",
     codec=StrCodec,
 )
-server_keep_alive: Property = Property(
+SERVER_KEEP_ALIVE: Property = Property(
     identifier=0x13,
     name="server_keep_alive",
     codec=TwoByteCodec,
 )
-auth_method: Property = Property(
+AUTH_METHOD: Property = Property(
     identifier=0x15,
     name="auth_method",
     codec=StrCodec,
 )
-auth_data: Property = Property(
+AUTH_DATA: Property = Property(
     identifier=0x16,
     name="auth_data",
     codec=BinaryCodec,
 )
-request_problem_info: Property = Property(
+REQUEST_PROBLEM_INFO: Property = Property(
     identifier=0x17,
     name="request_problem_info",
     codec=OneByteCodec,
 )
-will_delay_interval: Property = Property(
+WILL_DELAY_INTERVAL: Property = Property(
     identifier=0x18,
     name="will_delay_interval",
     codec=FourByteCodec,
 )
-request_response_info: Property = Property(
+REQUEST_RESPONSE_INFO: Property = Property(
     identifier=0x19,
     name="request_response_info",
     codec=OneByteCodec,
 )
-response_info: Property = Property(
+RESPONSE_INFO: Property = Property(
     identifier=0x1A,
     name="response_info",
     codec=StrCodec,
 )
-server_reference: Property = Property(
+SERVER_REFERENCE: Property = Property(
     identifier=0x1C,
     name="server_reference",
     codec=StrCodec,
 )
-reason_string: Property = Property(
+REASON_STRING: Property = Property(
     identifier=0x1F,
     name="reason_string",
     codec=StrCodec,
 )
-receive_maximum: Property = Property(
+RECEIVE_MAXIMUM: Property = Property(
     identifier=0x21,
     name="receive_maximum",
     codec=TwoByteCodec,
 )
-topic_alias_maximum: Property = Property(
+TOPIC_ALIAS_MAXIMUM: Property = Property(
     identifier=0x22,
     name="topic_alias_maximum",
     codec=TwoByteCodec,
 )
-topic_alias: Property = Property(
+TOPIC_ALIAS: Property = Property(
     identifier=0x23,
     name="topic_alias",
     codec=TwoByteCodec,
 )
-max_qos: Property = Property(
+MAX_QOS: Property = Property(
     identifier=0x24,
     name="max_qos",
     codec=OneByteCodec,
 )
-retain_available: Property = Property(
+RETAIN_AVAILABLE: Property = Property(
     identifier=0x25,
     name="retain_available",
     codec=OneByteCodec,
 )
-user_property: Property = Property(
+USER_PROPERTY: Property = Property(
     identifier=0x26,
     name="user_property",
     codec=StrPairCodec,
 )
-maximum_packet_size: Property = Property(
+MAXIMUM_PACKET_SIZE: Property = Property(
     identifier=0x27,
     name="maximum_packet_size",
     codec=FourByteCodec,
 )
-wildcard_subscription_available: Property = Property(
+WILDCARD_SUBSCRIPTION_AVAILABLE: Property = Property(
     identifier=0x28,
     name="wildcard_subscription_available",
     codec=OneByteCodec,
 )
-sub_id_available: Property = Property(
+SUB_ID_AVAILABLE: Property = Property(
     identifier=0x29,
     name="sub_id_available",
     codec=OneByteCodec,
 )
-shared_subscription_available: Property = Property(
+SHARED_SUBSCRIPTION_AVAILABLE: Property = Property(
     identifier=0x2A,
     name="shared_subscription_available",
     codec=OneByteCodec,
