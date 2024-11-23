@@ -25,6 +25,7 @@ __all__: All = (
     "PropertyNameDecoded",
     "PropertyIDDecoded",
     "Property",
+    "PropertyCodec",
     "PAYLOAD_FORMAT_ID",
     "MESSAGE_EXPIRY_INTERVAL",
     "CONTENT_TYPE",
@@ -137,14 +138,40 @@ class PropertyCodec:
             arr.extend(b_enc)
         return len(arr), arr
 
+    @classmethod
+    def _encoded(
+        cls,
+        ref_properties: dict[object, Property],
+        properties: dict[object, object],
+    ) -> bytearray:
+        __b_arr: bytearray = bytearray()
+        __len, __arr = cls._encode(
+            ref_properties=ref_properties, properties=properties
+        )
+        __b_arr += VariableByteCodec.encode(__len)
+        __b_arr += __arr
+        return __b_arr
+
     def encode_by_id(self, properties: dict[int, object]) -> PropertyEncoded:
         return self._encode(
             ref_properties=self._properties_by_id,  # type: ignore[arg-type]
             properties=properties,  # type: ignore[arg-type]
         )
 
+    def encoded_by_id(self, properties: dict[int, object]) -> bytearray:
+        return self._encoded(
+            ref_properties=self._properties_by_name,  # type: ignore[arg-type]
+            properties=properties,  # type: ignore[arg-type]
+        )
+
     def encode_by_name(self, properties: dict[str, object]) -> PropertyEncoded:
         return self._encode(
+            ref_properties=self._properties_by_name,  # type: ignore[arg-type]
+            properties=properties,  # type: ignore[arg-type]
+        )
+
+    def encoded_by_name(self, properties: dict[str, object]) -> bytearray:
+        return self._encoded(
             ref_properties=self._properties_by_name,  # type: ignore[arg-type]
             properties=properties,  # type: ignore[arg-type]
         )

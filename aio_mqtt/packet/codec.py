@@ -264,16 +264,3 @@ class VariableByteCodec(Codec):
             multiplier *= 0x80
 
         return index, value
-
-
-def encode_remaining_length(__len: int) -> bytes:
-    arr: bytearray = bytearray()
-    while True:
-        encoded_byte: int = __len % 128
-        __len //= 128
-        if 0 < __len:
-            encoded_byte |= 128
-        arr.append(encoded_byte)
-        if 0 >= __len:
-            break
-    return bytes(arr)
