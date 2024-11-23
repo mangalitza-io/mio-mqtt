@@ -110,6 +110,29 @@ class Packet(metaclass=ABCMeta):
     PROTOCOL_NAME: str = "MQTT"
     B_PROTOCOL_NAME: bytearray = StrCodec.encode(PROTOCOL_NAME)
 
+    @staticmethod
+    def _remaining_length(
+        variable_header: bytearray, payload: bytearray | bytes = b""
+    ) -> bytes:
+        remaining_length: int = len(variable_header) + len(payload)
+        return VariableByteCodec.encode(remaining_length)
+
+    @classmethod
+    def _fixed_header(
+        cls,
+        first_byte: int,
+        variable_header: bytearray,
+        payload: bytearray | bytes = b"",
+    ) -> bytearray:
+        fixed_header: bytearray = bytearray()
+        fixed_header.append(first_byte)
+        fixed_header.extend(
+            cls._remaining_length(
+                variable_header=variable_header, payload=payload
+            )
+        )
+        return fixed_header
+
     @classmethod
     @abstractmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
@@ -221,8 +244,9 @@ class ConnectPacket(Packet):
         variable_header.extend(b_keep_alive)
         variable_header.extend(b_properties)
 
-        remaining_length: int = len(variable_header) + len(payload)
-        b_remaining_length: bytes = VariableByteCodec.encode(remaining_length)
+        b_remaining_length: bytes = self._remaining_length(
+            variable_header=variable_header, payload=payload
+        )
 
         packet: bytearray = bytearray()
         packet.append(packet_type)
@@ -441,12 +465,54 @@ class PubAckPacket(Packet):
         )
     )
 
+    def __init__(
+        self,
+        packet_id: int,
+        reason_code: ReasonCode,
+        properties: DictStrObject | None = None,
+    ) -> None:
+        self._packet_id: int = packet_id
+        self._reason_code: ReasonCode = reason_code
+        self._properties: DictStrObject
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        offset: int = 0
+        packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
+        offset += packet_id_len
+        reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
+        offset += 1
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+
+        return cls(
+            packet_id=packet_id, reason_code=reason_code, properties=properties
+        )
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+
+        variable_header: bytearray = bytearray()
+        variable_header.extend(TwoByteCodec.encode(self._packet_id))
+        variable_header.append(self._reason_code.code)
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+
+        packet = bytearray()
+        packet.extend(
+            self._fixed_header(
+                first_byte=packet_type,
+                variable_header=variable_header,
+            )
+        )
+        packet.extend(variable_header)
+        return packet
 
 
 class PubRecPacket(Packet):
