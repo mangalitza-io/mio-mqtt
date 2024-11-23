@@ -57,7 +57,6 @@ class _MqttStreamClient:
     async def _read_loop(self) -> None:
         while True:
             fixed_byte: int = (await self._s_reader.readexactly(1))[0]
-            print(f"{self._read_loop.__qualname__}: Read {fixed_byte}")
             packet_type_val: int = (fixed_byte >> 4) & 0x0F
             try:
                 packet_type: Type[Packet] = self._packet_type_map[
@@ -67,13 +66,13 @@ class _MqttStreamClient:
                 raise OSError()
 
             remaining_length: int = await self._decode_remaining_length()
-            packet_body: bytes
+            packet_body: bytearray
             if 0 < remaining_length:
-                packet_body = await self._s_reader.readexactly(
-                    remaining_length
+                packet_body = bytearray(
+                    await self._s_reader.readexactly(remaining_length)
                 )
             else:
-                packet_body = b""
+                packet_body = bytearray()
             packet: Packet = packet_type.from_bytes(
                 fixed_byte=fixed_byte, packet_body=packet_body
             )
