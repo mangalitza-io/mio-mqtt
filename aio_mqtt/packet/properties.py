@@ -176,7 +176,9 @@ class PropertyCodec:
             properties=properties,  # type: ignore[arg-type]
         )
 
-    def decode_for_name(self, b_properties: bytearray) -> PropertyNameDecoded:
+    def decode_for_name(
+        self, b_properties: bytearray
+    ) -> tuple[Length, PropertyNameDecoded]:
         b_length, length = VariableByteCodec.decode(b_properties)
         try:
             b_prop_arr: bytearray = b_properties[b_length : b_length + length]
@@ -212,7 +214,7 @@ class PropertyCodec:
                     else (before_val, d_val)
                 )
 
-        return res
+        return b_length + length, res
 
 
 PAYLOAD_FORMAT_ID: Property = Property(

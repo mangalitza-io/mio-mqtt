@@ -191,13 +191,12 @@ class ConnectPacket(Packet):
             self._properties
         )
 
-        b_will_properties: bytearray = OneByteCodec.encode(0)
+        b_will_properties: bytearray = VariableByteCodec.encode(0)
         if (
             self._will_message is not None
             and self._will_message.properties is not None
         ):
-            # TODO
-            ...
+            b_will_properties = self._will_message.b_properties
 
         b_client_id: bytearray = StrCodec.encode(self._client_id)
 
@@ -298,17 +297,15 @@ class ConnAckPacket(Packet):
         else:
             self.properties = properties
 
-        print(f"ConnAckPacket.{self.session_present = }")
-        print(f"ConnAckPacket.{self.reason_code.name = }")
-        print(f"ConnAckPacket.{self.properties = }")
-
     @classmethod
     def from_bytes(
         cls, fixed_byte: int, packet_body: bytearray
     ) -> "ConnAckPacket":
         session_present = bool(packet_body[0] & 0b00000001)
         reason_code = cls.REASON_CODE[packet_body[1]]
-        properties = cls.PROPERTY.decode_for_name(packet_body[2:])
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[2:]
+        )
         return cls(
             session_present=session_present,
             reason_code=reason_code,
@@ -333,13 +330,93 @@ class PublishPacket(Packet):
             USER_PROPERTY,
         )
     )
+    ALLOWED_QOS: set[int] = {0, 1, 2}
+
+    def __init__(
+        self,
+        dup: bool,
+        qos: int,
+        retain: bool,
+        topic: str,
+        packet_id: int | None = None,
+        properties: DictStrObject | None = None,
+        payload: bytes | bytearray = b"",
+    ) -> None:
+        self._dup: bool = dup
+        self._qos: int = qos
+        self._retain: bool = retain
+        self._topic: str = topic
+        self._packet_id: int | None = packet_id
+
+        self._properties: DictStrObject
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+        self._payload: bytes | bytearray = payload
+
+        if self._qos not in self.ALLOWED_QOS:
+            raise ValueError()
+
+    def to_bytes(self) -> bytearray:
+        fixed_header: int = self.TYPE << 4
+        fixed_header |= int(self._dup) << 3
+        fixed_header |= (self._qos & 0x03) << 1
+        fixed_header |= int(self._retain)
+
+        variable_header: bytearray = bytearray()
+        variable_header.extend(StrCodec.encode(self._topic))
+
+        if 0 < self._qos:
+            variable_header.extend(TwoByteCodec.encode(self._qos))
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+
+        remaining_length: int = len(variable_header) + len(self._payload)
+        b_remaining_length: bytes = VariableByteCodec.encode(remaining_length)
+
+        packet: bytearray = bytearray()
+        packet.append(fixed_header)
+        packet.extend(b_remaining_length)
+        packet.extend(variable_header)
+        packet.extend(self._payload)
+        return packet
 
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        dup: bool = bool((fixed_byte >> 3) & 0x01)
+        qos: int = (fixed_byte >> 1) & 0x03
+        retain: bool = bool(fixed_byte & 0x01)
 
-    def to_bytes(self) -> bytearray:
-        return bytearray()
+        offset: int = 0
+
+        topic_len, topic = StrCodec.decode(packet_body[offset:])
+        offset += topic_len
+
+        packet_id: int | None = None
+        if 0 < qos:
+            packet_id_len, packet_id = TwoByteCodec.decode(
+                packet_body[offset:]
+            )
+            offset += packet_id_len
+
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        offset += properties_len
+
+        payload: bytearray = packet_body[offset:]
+
+        return cls(
+            dup=dup,
+            qos=qos,
+            retain=retain,
+            topic=topic,
+            packet_id=packet_id,
+            properties=properties,
+            payload=payload,
+        )
 
 
 class PubAckPacket(Packet):
