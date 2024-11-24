@@ -113,7 +113,7 @@ class Packet(metaclass=ABCMeta):
 
     @staticmethod
     def _remaining_length(
-        variable_header: bytearray, payload: bytearray | bytes = b""
+        variable_header: bytearray, payload: bytearray
     ) -> bytes:
         remaining_length: int = len(variable_header) + len(payload)
         return VariableByteCodec.encode(remaining_length)
@@ -122,8 +122,8 @@ class Packet(metaclass=ABCMeta):
     def _fixed_header(
         cls,
         first_byte: int,
-        variable_header: bytearray,
-        payload: bytearray | bytes = b"",
+        variable_header: bytearray = bytearray(),
+        payload: bytearray = bytearray(),
     ) -> bytearray:
         fixed_header: bytearray = bytearray()
         fixed_header.append(first_byte)
@@ -133,6 +133,25 @@ class Packet(metaclass=ABCMeta):
             )
         )
         return fixed_header
+
+    @classmethod
+    def _to_packet(
+        cls,
+        first_byte: int,
+        variable_header: bytearray = bytearray(),
+        payload: bytearray = bytearray(),
+    ) -> bytearray:
+        packet: bytearray = bytearray()
+        packet.extend(
+            cls._fixed_header(
+                first_byte=first_byte,
+                variable_header=variable_header,
+                payload=payload,
+            )
+        )
+        packet.extend(variable_header)
+        packet.extend(payload)
+        return packet
 
     @classmethod
     @abstractmethod
@@ -801,6 +820,7 @@ class SubscribePacket(Packet):
             USER_PROPERTY,
         )
     )
+
     def __init__(
         self,
         packet_id: int,
@@ -808,18 +828,62 @@ class SubscribePacket(Packet):
         properties: DictStrObject | None = None,
     ) -> None:
         self._packet_id: int = packet_id
-        self._topics: Iterable[SubscribePacket.Subscription] = topics
+        self._topics: Iterable[SubscribePacket.Subscription] = tuple(topics)
         if properties is not None:
             self._properties = properties
         else:
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "SubscribePacket":
+        offset: int = 0
+        packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
+        offset += packet_id_len
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        offset += properties_len
+
+        topics: list[SubscribePacket.Subscription] = []
+        while offset < len(packet_body):
+            (
+                subscription_len,
+                subscription,
+            ) = SubscribePacket.Subscription.from_bytes(packet_body[offset:])
+            offset += subscription_len
+            topics.append(subscription)
+        return cls(
+            packet_id=packet_id,
+            topics=topics,
+            properties=properties,
+        )
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        first_byte: int = self.TYPE << 4
+        first_byte |= 0b0010
+
+        variable_header: bytearray = bytearray()
+        variable_header.extend(TwoByteCodec.encode(self._packet_id))
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+        payload: bytearray = bytearray()
+        for topic in self._topics:
+            payload.extend(topic.to_bytes())
+
+        packet: bytearray = bytearray()
+        packet.extend(
+            self._fixed_header(
+                first_byte=first_byte,
+                variable_header=variable_header,
+                payload=payload,
+            )
+        )
+        packet.extend(variable_header)
+        packet.extend(payload)
+        return packet
 
 
 class SubAckPacket(Packet):
@@ -846,27 +910,122 @@ class SubAckPacket(Packet):
         )
     )
 
+    def __init__(
+        self,
+        packet_id: int,
+        reason_codes: Iterable[ReasonCode],
+        properties: DictStrObject | None = None,
+    ) -> None:
+        self._packet_id: int = packet_id
+        self._reason_codes: tuple[ReasonCode, ...] = tuple(reason_codes)
+
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        offset: int = 0
+        packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
+        offset += packet_id_len
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        offset += properties_len
+
+        reason_codes: list[ReasonCode] = []
+        while offset < len(packet_body):
+            reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
+            offset += 1
+            reason_codes.append(reason_code)
+        return cls(
+            packet_id=packet_id,
+            reason_codes=reason_codes,
+            properties=properties,
+        )
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
-        packet_type |= 0b0010
 
-        return bytearray()
+        variable_header: bytearray = bytearray()
+        variable_header.extend(TwoByteCodec.encode(self._packet_id))
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+        payload: bytearray = bytearray()
+        for reason_code in self._reason_codes:
+            payload.append(reason_code.code)
+
+        packet: bytearray = bytearray()
+        packet.extend(
+            self._fixed_header(
+                first_byte=packet_type,
+                variable_header=variable_header,
+                payload=payload,
+            )
+        )
+        packet.extend(variable_header)
+        packet.extend(payload)
+        return packet
 
 
 class UnSubscribePacket(Packet):
     TYPE: int = 10
     PROPERTY: PropertyCodec = PropertyCodec((USER_PROPERTY,))
 
+    def __init__(
+        self,
+        packet_id: int,
+        topics: Iterable[str],
+        properties: DictStrObject | None = None,
+    ) -> None:
+        self._packet_id: int = packet_id
+        self._topics: Iterable[str] = tuple(topics)
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        offset: int = 0
+        packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
+        offset += packet_id_len
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        offset += properties_len
+
+        topics: list[str] = []
+        while offset < len(packet_body):
+            topic_len, topic = StrCodec.decode(packet_body[offset:])
+            offset += topic_len
+            topics.append(topic)
+        return cls(
+            packet_id=packet_id,
+            topics=topics,
+            properties=properties,
+        )
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        first_byte: int = self.TYPE << 4
+        first_byte |= 0b0010
+
+        variable_header: bytearray = bytearray()
+        variable_header.extend(TwoByteCodec.encode(self._packet_id))
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+        payload: bytearray = bytearray()
+        for topic in self._topics:
+            payload.extend(StrCodec.encode(topic))
+
+        return self._to_packet(
+            first_byte=first_byte,
+            variable_header=variable_header,
+            payload=payload,
+        )
 
 
 class UnSubAckPacket(Packet):
@@ -888,24 +1047,76 @@ class UnSubAckPacket(Packet):
         )
     )
 
+    def __init__(
+        self,
+        packet_id: int,
+        reason_codes: Iterable[ReasonCode],
+        properties: DictStrObject | None = None,
+    ) -> None:
+        self._packet_id: int = packet_id
+        self._reason_codes: tuple[ReasonCode, ...] = tuple(reason_codes)
+
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        offset: int = 0
+        packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
+        offset += packet_id_len
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        offset += properties_len
+
+        reason_codes: list[ReasonCode] = []
+        while offset < len(packet_body):
+            reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
+            offset += 1
+            reason_codes.append(reason_code)
+        return cls(
+            packet_id=packet_id,
+            reason_codes=reason_codes,
+            properties=properties,
+        )
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+
+        variable_header: bytearray = bytearray()
+        variable_header.extend(TwoByteCodec.encode(self._packet_id))
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+        payload: bytearray = bytearray()
+        for reason_code in self._reason_codes:
+            payload.append(reason_code.code)
+
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
+            payload=payload,
+        )
 
 
 class PingReqPacket(Packet):
     TYPE: int = 12
     PROPERTY: PropertyCodec = PropertyCodec(())
+    REASON_CODE: ReasonCodes = ReasonCodes(())
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PingReqPacket":
         return cls()
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+        return self._to_packet(
+            first_byte=packet_type,
+        )
 
 
 class PingRespPacket(Packet):
@@ -913,11 +1124,16 @@ class PingRespPacket(Packet):
     PROPERTY: PropertyCodec = PropertyCodec(())
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PingRespPacket":
         return cls()
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+        return self._to_packet(
+            first_byte=packet_type,
+        )
 
 
 class DisconnectPacket(Packet):
@@ -965,12 +1181,39 @@ class DisconnectPacket(Packet):
         )
     )
 
+    def __init__(
+        self,
+        reason_code: ReasonCode,
+        properties: DictStrObject | None = None,
+    ) -> None:
+        self._reason_code: ReasonCode = reason_code
+        self._properties: DictStrObject
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        offset: int = 0
+        reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
+        offset += 1
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        return cls(reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+        variable_header: bytearray = bytearray()
+        variable_header.append(self._reason_code.code)
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
+        )
 
 
 class AuthPacket(Packet):
@@ -992,9 +1235,36 @@ class AuthPacket(Packet):
         )
     )
 
+    def __init__(
+        self,
+        reason_code: ReasonCode,
+        properties: DictStrObject | None = None,
+    ) -> None:
+        self._reason_code: ReasonCode = reason_code
+        self._properties: DictStrObject
+        if properties is not None:
+            self._properties = properties
+        else:
+            self._properties = {}
+
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
-        return cls()
+        offset: int = 0
+        reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
+        offset += 1
+        properties_len, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        return cls(reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+        variable_header: bytearray = bytearray()
+        variable_header.append(self._reason_code.code)
+        variable_header.extend(
+            self.PROPERTY.encoded_by_name(properties=self._properties)
+        )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
+        )
