@@ -7,6 +7,7 @@ Slots: TypeAlias = tuple[str, ...]
 DictStrObject: TypeAlias = dict[str, object]
 
 Length: TypeAlias = int
+Buffer: TypeAlias = bytes | bytearray | memoryview
 
 SockOpt: TypeAlias = tuple[int, int, int | bytes]
 SockOpts: TypeAlias = tuple[SockOpt, ...]
