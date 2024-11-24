@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from collections.abc import Iterable
 
-from aio_mqtt.types import All, DictStrObject, Length
+from aio_mqtt.types import All, Buffer, DictStrObject, Length
 
 from .codec import OneByteCodec, StrCodec, TwoByteCodec, VariableByteCodec
 from .properties import (
@@ -113,7 +113,8 @@ class Packet(metaclass=ABCMeta):
 
     @staticmethod
     def _remaining_length(
-        variable_header: bytearray, payload: bytearray
+        variable_header: Buffer = b"",
+        payload: Buffer = b"",
     ) -> bytes:
         remaining_length: int = len(variable_header) + len(payload)
         return VariableByteCodec.encode(remaining_length)
@@ -122,8 +123,8 @@ class Packet(metaclass=ABCMeta):
     def _fixed_header(
         cls,
         first_byte: int,
-        variable_header: bytearray = bytearray(),
-        payload: bytearray = bytearray(),
+        variable_header: Buffer = b"",
+        payload: Buffer = b"",
     ) -> bytearray:
         fixed_header: bytearray = bytearray()
         fixed_header.append(first_byte)
@@ -138,8 +139,8 @@ class Packet(metaclass=ABCMeta):
     def _to_packet(
         cls,
         first_byte: int,
-        variable_header: bytearray = bytearray(),
-        payload: bytearray = bytearray(),
+        variable_header: Buffer = b"",
+        payload: Buffer = b"",
     ) -> bytearray:
         packet: bytearray = bytearray()
         packet.extend(
@@ -264,16 +265,11 @@ class ConnectPacket(Packet):
         variable_header.extend(b_keep_alive)
         variable_header.extend(b_properties)
 
-        b_remaining_length: bytes = self._remaining_length(
-            variable_header=variable_header, payload=payload
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
+            payload=payload,
         )
-
-        packet: bytearray = bytearray()
-        packet.append(packet_type)
-        packet.extend(b_remaining_length)
-        packet.extend(variable_header)
-        packet.extend(payload)
-        return packet
 
 
 class ConnAckPacket(Packet):
@@ -417,15 +413,11 @@ class PublishPacket(Packet):
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )
 
-        remaining_length: int = len(variable_header) + len(self._payload)
-        b_remaining_length: bytes = VariableByteCodec.encode(remaining_length)
-
-        packet: bytearray = bytearray()
-        packet.append(fixed_header)
-        packet.extend(b_remaining_length)
-        packet.extend(variable_header)
-        packet.extend(self._payload)
-        return packet
+        return self._to_packet(
+            first_byte=fixed_header,
+            variable_header=variable_header,
+            payload=self._payload,
+        )
 
     @classmethod
     def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
@@ -524,15 +516,10 @@ class PubAckPacket(Packet):
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )
 
-        packet = bytearray()
-        packet.extend(
-            self._fixed_header(
-                first_byte=packet_type,
-                variable_header=variable_header,
-            )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
         )
-        packet.extend(variable_header)
-        return packet
 
 
 class PubRecPacket(Packet):
@@ -596,15 +583,10 @@ class PubRecPacket(Packet):
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )
 
-        packet = bytearray()
-        packet.extend(
-            self._fixed_header(
-                first_byte=packet_type,
-                variable_header=variable_header,
-            )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
         )
-        packet.extend(variable_header)
-        return packet
 
 
 class PubRelPacket(Packet):
@@ -665,15 +647,10 @@ class PubRelPacket(Packet):
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )
 
-        packet = bytearray()
-        packet.extend(
-            self._fixed_header(
-                first_byte=packet_type,
-                variable_header=variable_header,
-            )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
         )
-        packet.extend(variable_header)
-        return packet
 
 
 class PubCompPacket(Packet):
@@ -732,15 +709,10 @@ class PubCompPacket(Packet):
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )
 
-        packet = bytearray()
-        packet.extend(
-            self._fixed_header(
-                first_byte=packet_type,
-                variable_header=variable_header,
-            )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
         )
-        packet.extend(variable_header)
-        return packet
 
 
 class SubscribePacket(Packet):
@@ -873,17 +845,11 @@ class SubscribePacket(Packet):
         for topic in self._topics:
             payload.extend(topic.to_bytes())
 
-        packet: bytearray = bytearray()
-        packet.extend(
-            self._fixed_header(
-                first_byte=first_byte,
-                variable_header=variable_header,
-                payload=payload,
-            )
+        return self._to_packet(
+            first_byte=first_byte,
+            variable_header=variable_header,
+            payload=payload,
         )
-        packet.extend(variable_header)
-        packet.extend(payload)
-        return packet
 
 
 class SubAckPacket(Packet):
@@ -957,17 +923,11 @@ class SubAckPacket(Packet):
         for reason_code in self._reason_codes:
             payload.append(reason_code.code)
 
-        packet: bytearray = bytearray()
-        packet.extend(
-            self._fixed_header(
-                first_byte=packet_type,
-                variable_header=variable_header,
-                payload=payload,
-            )
+        return self._to_packet(
+            first_byte=packet_type,
+            variable_header=variable_header,
+            payload=payload,
         )
-        packet.extend(variable_header)
-        packet.extend(payload)
-        return packet
 
 
 class UnSubscribePacket(Packet):
