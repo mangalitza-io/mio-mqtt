@@ -145,6 +145,11 @@ class StrCodec(BinaryCodec):
 
 
 class StrPairCodec(StrCodec):
+    """
+    # TODO fix
+        "user_property": [("key1", "value1"), ("key2", "value2")]
+    """
+
     __slots__: Slots = tuple()
 
     @classmethod

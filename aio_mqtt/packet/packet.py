@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from collections.abc import Iterable
 
-from aio_mqtt.types import All, Buffer, DictStrObject
+from aio_mqtt.types import All, Buffer, DictStrObject, Slots
 
 from .codec import OneByteCodec, StrCodec, TwoByteCodec, VariableByteCodec
 from .properties import (
@@ -110,6 +110,11 @@ class Packet(metaclass=ABCMeta):
     PROTOCOL_NAME: str = "MQTT"
     B_PROTOCOL_NAME: bytearray = StrCodec.encode(PROTOCOL_NAME)
 
+    PROPERTY: PropertyCodec = PropertyCodec(tuple())
+    REASON_CODE: ReasonCodes = ReasonCodes(tuple())
+
+    __slots__: Slots = tuple()
+
     @staticmethod
     def _remaining_length(
         variable_header: Buffer = b"",
@@ -178,6 +183,16 @@ class ConnectPacket(Packet):
             MAXIMUM_PACKET_SIZE,
         )
     )
+    MQTT_50: int = 5
+    __slots__: Slots = (
+        "_client_id",
+        "_clean_start",
+        "_username",
+        "_password",
+        "_keep_alive",
+        "_properties",
+        "_will_message",
+    )
 
     def __init__(
         self,
@@ -211,58 +226,39 @@ class ConnectPacket(Packet):
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
-        protocol_version: bytearray = OneByteCodec.encode(5)
 
         connect_flags: int = 0b00000000
-        if self._clean_start is True:
-            connect_flags |= 0b00000010
+        variable_header: bytearray = bytearray()
+        payload: bytearray = bytearray()
 
-        if self._password is not None:
-            connect_flags |= 0b01000000
+        variable_header.extend(self.B_PROTOCOL_NAME)
+        variable_header.extend(OneByteCodec.encode(self.MQTT_50))
 
-        if self._username is not None:
-            connect_flags |= 0b10000000
+        payload.extend(StrCodec.encode(self._client_id))
 
         if self._will_message is not None:
             connect_flags |= 0b00000100
             connect_flags |= self._will_message.qos << 3
             if self._will_message.retain is True:
                 connect_flags |= 0b00100000
-        b_keep_alive: bytes = TwoByteCodec.encode(self._keep_alive)
+            payload += self._will_message.b_properties
+            payload += self._will_message.b_topic
+            payload += self._will_message.b_message
 
-        b_properties: bytearray = self.PROPERTY.encoded_by_name(
-            self._properties
-        )
-
-        b_will_properties: bytearray = VariableByteCodec.encode(0)
-        if (
-            self._will_message is not None
-            and self._will_message.properties is not None
-        ):
-            b_will_properties = self._will_message.b_properties
-
-        b_client_id: bytearray = StrCodec.encode(self._client_id)
-
-        payload: bytearray = bytearray()
-        payload.extend(b_client_id)
-
-        if self._will_message is not None:
-            payload += b_will_properties
-            payload += StrCodec.encode(self._will_message.topic)
-            payload += StrCodec.encode(self._will_message.message)
+        if self._clean_start is True:
+            connect_flags |= 0b00000010
 
         if self._username is not None:
+            connect_flags |= 0b10000000
             payload += StrCodec.encode(self._username)
 
         if self._password is not None:
+            connect_flags |= 0b01000000
             payload += StrCodec.encode(self._password)
 
-        variable_header: bytearray = bytearray()
-        variable_header.extend(self.B_PROTOCOL_NAME)
-        variable_header.extend(protocol_version)
         variable_header.append(connect_flags)
-        variable_header.extend(b_keep_alive)
-        variable_header.extend(b_properties)
+        variable_header.extend(TwoByteCodec.encode(self._keep_alive))
+        variable_header.extend(self.PROPERTY.encoded_by_name(self._properties))
 
         return self._to_packet(
             first_byte=packet_type,
@@ -320,6 +316,11 @@ class ConnAckPacket(Packet):
             CONNECTION_RATE_EXCEEDED,
         )
     )
+    __slots__: Slots = (
+        "session_present",
+        "reason_code",
+        "properties",
+    )
 
     def __init__(
         self,
@@ -370,6 +371,15 @@ class PublishPacket(Packet):
         )
     )
     ALLOWED_QOS: set[int] = {0, 1, 2}
+    __slots__: Slots = (
+        "_dup",
+        "_qos",
+        "_retain",
+        "_topic",
+        "_packet_id",
+        "_properties",
+        "_payload",
+    )
 
     def __init__(
         self,
@@ -475,6 +485,11 @@ class PubAckPacket(Packet):
             PAYLOAD_FORMAT_INVALID,
         )
     )
+    __slots__: Slots = (
+        "_packet_id",
+        "_reason_code",
+        "_properties",
+    )
 
     def __init__(
         self,
@@ -542,6 +557,11 @@ class PubRecPacket(Packet):
             PAYLOAD_FORMAT_INVALID,
         )
     )
+    __slots__: Slots = (
+        "_packet_id",
+        "_reason_code",
+        "_properties",
+    )
 
     def __init__(
         self,
@@ -604,6 +624,11 @@ class PubRelPacket(Packet):
             IMPLEMENTATION_SPECIFIC_ERROR,
             NOT_AUTHORIZED,
         )
+    )
+    __slots__: Slots = (
+        "_packet_id",
+        "_reason_code",
+        "_properties",
     )
 
     def __init__(
@@ -668,6 +693,11 @@ class PubCompPacket(Packet):
             IMPLEMENTATION_SPECIFIC_ERROR,
         )
     )
+    __slots__: Slots = (
+        "_packet_id",
+        "_reason_code",
+        "_properties",
+    )
 
     def __init__(
         self,
@@ -721,6 +751,11 @@ class SubscribePacket(Packet):
             SUBSCRIPTION_IDENTIFIER,
             USER_PROPERTY,
         )
+    )
+    __slots__: Slots = (
+        "_packet_id",
+        "_topics",
+        "_properties",
     )
 
     def __init__(
@@ -805,6 +840,11 @@ class SubAckPacket(Packet):
             WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED,
         )
     )
+    __slots__: Slots = (
+        "_packet_id",
+        "_reason_codes",
+        "_properties",
+    )
 
     def __init__(
         self,
@@ -863,6 +903,12 @@ class SubAckPacket(Packet):
 class UnSubscribePacket(Packet):
     TYPE: int = 10
     PROPERTY: PropertyCodec = PropertyCodec((USER_PROPERTY,))
+
+    __slots__: Slots = (
+        "_packet_id",
+        "_topics",
+        "_properties",
+    )
 
     def __init__(
         self,
@@ -936,6 +982,11 @@ class UnSubAckPacket(Packet):
             TOPIC_FILTER_INVALID,
         )
     )
+    __slots__: Slots = (
+        "_packet_id",
+        "_reason_codes",
+        "_properties",
+    )
 
     def __init__(
         self,
@@ -996,6 +1047,8 @@ class PingReqPacket(Packet):
     PROPERTY: PropertyCodec = PropertyCodec(())
     REASON_CODE: ReasonCodes = ReasonCodes(())
 
+    __slots__: Slots = tuple()
+
     @classmethod
     def from_bytes(
         cls, fixed_byte: int, packet_body: bytearray
@@ -1012,6 +1065,8 @@ class PingReqPacket(Packet):
 class PingRespPacket(Packet):
     TYPE: int = 13
     PROPERTY: PropertyCodec = PropertyCodec(())
+
+    __slots__: Slots = tuple()
 
     @classmethod
     def from_bytes(
@@ -1071,6 +1126,11 @@ class DisconnectPacket(Packet):
         )
     )
 
+    __slots__: Slots = (
+        "_reason_code",
+        "_properties",
+    )
+
     def __init__(
         self,
         reason_code: ReasonCode,
@@ -1123,6 +1183,10 @@ class AuthPacket(Packet):
             RE_AUTHENTICATE,
             UNSPECIFIED_ERROR,
         )
+    )
+    __slots__: Slots = (
+        "_reason_code",
+        "_properties",
     )
 
     def __init__(

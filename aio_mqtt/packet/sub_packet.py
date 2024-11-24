@@ -63,16 +63,16 @@ class WillMessage:
             raise ValueError()
 
     @property
+    def b_properties(self) -> bytearray:
+        return self.PROPERTY.encoded_by_name(self.properties)
+
+    @property
     def b_topic(self) -> bytearray:
         return StrCodec.encode(self.topic)
 
     @property
     def b_message(self) -> bytearray:
         return StrCodec.encode(self.message)
-
-    @property
-    def b_properties(self) -> bytearray:
-        return self.PROPERTY.encoded_by_name(self.properties)
 
 
 class Subscription:
