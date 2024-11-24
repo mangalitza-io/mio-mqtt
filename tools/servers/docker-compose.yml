@@ -1,0 +1,23 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    container_name: mosquitto
+    ports:
+      - "1883:1883"   # MQTT port
+      - "9001:9001"   # WebSocket port
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+  emqx:
+    image: emqx:5.8.1
+    container_name: emqx
+    ports:
+      - "1884:1883"   # MQTT port
+      - "8084:8083"   # WebSocket port
+      - "8081:8081"   # Web UI/Admin UI
+  hivemq:
+    image: hivemq/hivemq-ce
+    container_name: hivemq
+    ports:
+      - "1883:1883"      # MQTT port
+      - "8080:8080"      # Web UI/Admin UI
+      - "8883:8883"       # Optional: MQTT over SSL/TLS
