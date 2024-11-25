@@ -133,9 +133,7 @@ class Packet(metaclass=ABCMeta):
         fixed_header: bytearray = bytearray()
         fixed_header.append(first_byte)
         fixed_header.extend(
-            cls._remaining_length(
-                variable_header=variable_header, payload=payload
-            )
+            cls._remaining_length(variable_header=variable_header, payload=payload)
         )
         return fixed_header
 
@@ -338,14 +336,10 @@ class ConnAckPacket(Packet):
             self.properties = properties
 
     @classmethod
-    def from_bytes(
-        cls, fixed_byte: int, packet_body: bytearray
-    ) -> "ConnAckPacket":
+    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "ConnAckPacket":
         session_present = bool(packet_body[0] & 0b00000001)
         reason_code = cls.REASON_CODE[packet_body[1]]
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[2:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[2:])
         return cls(
             session_present=session_present,
             reason_code=reason_code,
@@ -386,7 +380,7 @@ class PublishPacket(Packet):
         dup: bool,
         qos: int,
         retain: bool,
-        topic: str,
+        topic: str | None = None,
         packet_id: int | None = None,
         properties: DictStrObject | None = None,
         payload: bytes | bytearray = b"",
@@ -394,7 +388,7 @@ class PublishPacket(Packet):
         self._dup: bool = dup
         self._qos: int = qos
         self._retain: bool = retain
-        self._topic: str = topic
+        self._topic: str | None = topic
         self._packet_id: int | None = packet_id
 
         self._properties: DictStrObject
@@ -414,10 +408,13 @@ class PublishPacket(Packet):
         fixed_header |= int(self._retain)
 
         variable_header: bytearray = bytearray()
-        variable_header.extend(StrCodec.encode(self._topic))
+        if self._topic is not None:
+            variable_header.extend(StrCodec.encode(self._topic))
 
         if 0 < self._qos:
-            variable_header.extend(TwoByteCodec.encode(self._qos))
+            if self._packet_id is None:
+                raise ValueError()
+            variable_header.extend(TwoByteCodec.encode(self._packet_id))
         variable_header.extend(
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )
@@ -441,14 +438,10 @@ class PublishPacket(Packet):
 
         packet_id: int | None = None
         if 0 < qos:
-            packet_id_len, packet_id = TwoByteCodec.decode(
-                packet_body[offset:]
-            )
+            packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
             offset += packet_id_len
 
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         offset += properties_len
 
         payload: bytearray = packet_body[offset:]
@@ -512,13 +505,9 @@ class PubAckPacket(Packet):
         offset += packet_id_len
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
 
-        return cls(
-            packet_id=packet_id, reason_code=reason_code, properties=properties
-        )
+        return cls(packet_id=packet_id, reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
@@ -584,13 +573,9 @@ class PubRecPacket(Packet):
         offset += packet_id_len
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
 
-        return cls(
-            packet_id=packet_id, reason_code=reason_code, properties=properties
-        )
+        return cls(packet_id=packet_id, reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
@@ -652,13 +637,9 @@ class PubRelPacket(Packet):
         offset += packet_id_len
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
 
-        return cls(
-            packet_id=packet_id, reason_code=reason_code, properties=properties
-        )
+        return cls(packet_id=packet_id, reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
@@ -720,13 +701,9 @@ class PubCompPacket(Packet):
         offset += packet_id_len
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
 
-        return cls(
-            packet_id=packet_id, reason_code=reason_code, properties=properties
-        )
+        return cls(packet_id=packet_id, reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
@@ -772,15 +749,11 @@ class SubscribePacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(
-        cls, fixed_byte: int, packet_body: bytearray
-    ) -> "SubscribePacket":
+    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "SubscribePacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         offset += properties_len
 
         topics: list[Subscription] = []
@@ -865,9 +838,7 @@ class SubAckPacket(Packet):
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         offset += properties_len
 
         reason_codes: list[ReasonCode] = []
@@ -928,9 +899,7 @@ class UnSubscribePacket(Packet):
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         offset += properties_len
 
         topics: list[str] = []
@@ -1007,9 +976,7 @@ class UnSubAckPacket(Packet):
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         offset += properties_len
 
         reason_codes: list[ReasonCode] = []
@@ -1050,9 +1017,7 @@ class PingReqPacket(Packet):
     __slots__: Slots = tuple()
 
     @classmethod
-    def from_bytes(
-        cls, fixed_byte: int, packet_body: bytearray
-    ) -> "PingReqPacket":
+    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "PingReqPacket":
         return cls()
 
     def to_bytes(self) -> bytearray:
@@ -1069,9 +1034,7 @@ class PingRespPacket(Packet):
     __slots__: Slots = tuple()
 
     @classmethod
-    def from_bytes(
-        cls, fixed_byte: int, packet_body: bytearray
-    ) -> "PingRespPacket":
+    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "PingRespPacket":
         return cls()
 
     def to_bytes(self) -> bytearray:
@@ -1148,9 +1111,7 @@ class DisconnectPacket(Packet):
         offset: int = 0
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         return cls(reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:
@@ -1206,9 +1167,7 @@ class AuthPacket(Packet):
         offset: int = 0
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
-        properties_len, properties = cls.PROPERTY.decode_for_name(
-            packet_body[offset:]
-        )
+        properties_len, properties = cls.PROPERTY.decode_for_name(packet_body[offset:])
         return cls(reason_code=reason_code, properties=properties)
 
     def to_bytes(self) -> bytearray:

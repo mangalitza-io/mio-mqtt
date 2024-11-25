@@ -1,5 +1,3 @@
-from typing import Type
-
 from aio_mqtt.types import Slots
 
 BASE_EXCEPTION = Exception

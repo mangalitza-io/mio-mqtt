@@ -10,24 +10,19 @@ from typing import Awaitable, Type, TypeAlias
 
 from aio_mqtt.packet.packet import (
     AuthPacket,
-    ConnAckPacket,
     ConnectPacket,
     DisconnectPacket,
     Packet,
     PingReqPacket,
-    PingRespPacket,
     PubAckPacket,
     PubCompPacket,
     PublishPacket,
     PubRecPacket,
     PubRelPacket,
-    SubAckPacket,
     SubscribePacket,
-    UnSubAckPacket,
     UnSubscribePacket,
 )
 from aio_mqtt.types import Address
-
 from .tcp_sock import TcpSocket
 
 _ReceiverCallback: TypeAlias = Callable[[Packet], Awaitable[None]]
@@ -59,9 +54,7 @@ class _MqttStreamClient:
             fixed_byte: int = (await self._s_reader.readexactly(1))[0]
             packet_type_val: int = (fixed_byte >> 4) & 0x0F
             try:
-                packet_type: Type[Packet] = self._packet_type_map[
-                    packet_type_val
-                ]
+                packet_type: Type[Packet] = self._packet_type_map[packet_type_val]
             except KeyError:
                 raise OSError()
 

@@ -145,9 +145,7 @@ class PropertyCodec:
         properties: dict[object, object],
     ) -> bytearray:
         __b_arr: bytearray = bytearray()
-        __len, __arr = cls._encode(
-            ref_properties=ref_properties, properties=properties
-        )
+        __len, __arr = cls._encode(ref_properties=ref_properties, properties=properties)
         __b_arr += VariableByteCodec.encode(__len)
         __b_arr += __arr
         return __b_arr
