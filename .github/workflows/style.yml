@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: ["pypy3.10", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: [ "pypy3.10", "3.9", "3.10", "3.11", "3.12", "3.13" ]
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
 
-      - name: Install dependencies
+      - name: Install mypy
         run: |
           python -m pip install --upgrade pip
           pip install mypy
@@ -31,3 +31,26 @@ jobs:
       - name: Run mypy
         run: |
           mypy --verbose "${PROJECT_DIR}"
+
+  ruff-lint:
+    name: Lint with Ruff
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+          architecture: x64
+
+      - name: Install Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          ruff --version
+
+      - name: Run Ruff
+        run: |
+          ruff check "${PROJECT_DIR}"
