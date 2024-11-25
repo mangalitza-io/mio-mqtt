@@ -99,7 +99,9 @@ class BinaryCodec(Codec):
             raise DecodeTypeError()
 
         try:
-            __bytes: bytes = __bytearray[cls.L_INT_LENGTH : cls.L_INT_LENGTH + length]
+            __bytes: bytes = __bytearray[
+                cls.L_INT_LENGTH : cls.L_INT_LENGTH + length
+            ]
         except IndexError:
             raise DecodeIndexError()
         else:
@@ -118,7 +120,9 @@ class StrCodec(BinaryCodec):
     @classmethod
     def encode(cls, __data: str) -> bytearray:  # type: ignore[override]
         try:
-            b__str: bytes = __data.encode(encoding=cls.ENCODING, errors=cls.ERRORS)
+            b__str: bytes = __data.encode(
+                encoding=cls.ENCODING, errors=cls.ERRORS
+            )
         except AttributeError:
             raise EncodeTypeError(__data)
         except UnicodeEncodeError:
@@ -160,7 +164,9 @@ class StrPairCodec(StrCodec):
     @classmethod
     def decode(cls, __bytearray: bytearray) -> StrPairDecoded:  # type: ignore[override]
         key_len, key_arr = super(StrPairCodec, cls).decode(__bytearray)
-        val_len, val_arr = super(StrPairCodec, cls).decode(__bytearray[key_len:])
+        val_len, val_arr = super(StrPairCodec, cls).decode(
+            __bytearray[key_len:]
+        )
 
         return key_len + val_len, (key_arr, val_arr)
 
@@ -175,7 +181,9 @@ class _IntCodec(Codec):
     @classmethod
     def encode(cls, __data: int) -> bytearray:  # type: ignore[override]
         try:
-            b_int: bytes = __data.to_bytes(length=cls.LENGTH, byteorder=cls.BYTEORDER)
+            b_int: bytes = __data.to_bytes(
+                length=cls.LENGTH, byteorder=cls.BYTEORDER
+            )
         except AttributeError:
             raise EncodeTypeError()
         except OverflowError:

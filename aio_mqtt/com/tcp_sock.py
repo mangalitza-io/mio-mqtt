@@ -7,8 +7,8 @@ from asyncio import (
     StreamWriter,
     Transport,
 )
-from socket import AddressFamily, SocketKind, socket
 from collections.abc import Callable
+from socket import AddressFamily, SocketKind, socket
 from typing import TypeAlias
 
 from aio_mqtt.types import Address, All, Slots, SockOpts
@@ -126,7 +126,9 @@ class TcpSocket(socket, metaclass=ABCMeta):
             except OSError:
                 continue
 
-    async def connect_async(self, __address: Address, loop: AbstractEventLoop) -> None:
+    async def connect_async(
+        self, __address: Address, loop: AbstractEventLoop
+    ) -> None:
         return await loop.sock_connect(self, __address)
 
     @abstractmethod
