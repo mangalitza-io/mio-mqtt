@@ -1,6 +1,9 @@
 name: Mypy Static Type Checking
 
-on: [ push, pull_request ]
+on: [ "push", "pull_request" ]
+
+env:
+  PROJECT_DIR: "aio_mqtt"
 
 jobs:
   mypy:
@@ -27,4 +30,4 @@ jobs:
       # Run mypy
       - name: Run mypy
         run: |
-          mypy aio_mqtt
+          mypy --version --verbose "${PROJECT_DIR}"
