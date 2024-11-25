@@ -16,6 +16,7 @@ optional = true
 black = "^23.12.1"
 mypy = "^1.8.0"
 isort = "^5.13.2"
+ruff = "^0.8.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -30,7 +31,6 @@ multi_line_output = 3
 line_length = 79
 
 [tool.mypy]
-python_version = "3.10"
 # Import discovery
 ignore_missing_imports = true
 # Platform configuration
