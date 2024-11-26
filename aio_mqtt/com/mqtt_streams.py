@@ -110,8 +110,11 @@ class _MqttStreamClient:
         self._reader_loop_task = self._loop.create_task(self._read_loop())
 
     async def close(self) -> None:
-        self._s_writer.close()
-        self._reader_loop_task.cancel()
+        if self._s_writer is not None and not self._s_writer.is_closing():
+            self._s_writer.close()
+        if self._reader_loop_task is not None and isinstance(self._reader_loop_task, Task) is True:
+            self._reader_loop_task.cancel()
+        self._reset()
 
     def _reset(self) -> None:
         self._sock = None  # type: ignore[assignment]
