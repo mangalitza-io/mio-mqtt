@@ -11,7 +11,6 @@ from collections.abc import Callable
 from socket import AddressFamily, SocketKind, socket
 from typing import TypeAlias
 
-from aio_mqtt.errors import BASE_EXCEPTION
 from aio_mqtt.types import Address, All, Slots, SockOpts
 
 __all__: All = (

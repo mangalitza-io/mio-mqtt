@@ -54,13 +54,11 @@ class DecodeOverflowError(DecodeError, OverflowError):
 class Codec(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
-    def encode(cls, __data: object) -> bytearray:
-        ...
+    def encode(cls, __data: object) -> bytearray: ...
 
     @classmethod
     @abstractmethod
-    def decode(cls, __bytearray: bytearray) -> tuple[Length, object]:
-        ...
+    def decode(cls, __bytearray: bytearray) -> tuple[Length, object]: ...
 
 
 class BinaryCodec(Codec):

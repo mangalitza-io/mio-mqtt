@@ -386,7 +386,7 @@ class PublishPacket(Packet):
         dup: bool,
         qos: int,
         retain: bool,
-        topic: str,
+        topic: str | None = None,
         packet_id: int | None = None,
         properties: DictStrObject | None = None,
         payload: bytes | bytearray = b"",
@@ -394,7 +394,7 @@ class PublishPacket(Packet):
         self._dup: bool = dup
         self._qos: int = qos
         self._retain: bool = retain
-        self._topic: str = topic
+        self._topic: str | None = topic
         self._packet_id: int | None = packet_id
 
         self._properties: DictStrObject
@@ -414,10 +414,13 @@ class PublishPacket(Packet):
         fixed_header |= int(self._retain)
 
         variable_header: bytearray = bytearray()
-        variable_header.extend(StrCodec.encode(self._topic))
+        if self._topic is not None:
+            variable_header.extend(StrCodec.encode(self._topic))
 
         if 0 < self._qos:
-            variable_header.extend(TwoByteCodec.encode(self._qos))
+            if self._packet_id is None:
+                raise ValueError()
+            variable_header.extend(TwoByteCodec.encode(self._packet_id))
         variable_header.extend(
             self.PROPERTY.encoded_by_name(properties=self._properties)
         )

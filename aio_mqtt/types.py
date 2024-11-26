@@ -1,6 +1,5 @@
 from asyncio import AbstractEventLoop
-from ssl import SSLContext
-from typing import Any, TypeAlias
+from typing import TypeAlias
 
 All: TypeAlias = tuple[str, ...]
 Slots: TypeAlias = tuple[str, ...]
