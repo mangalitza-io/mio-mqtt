@@ -3,7 +3,7 @@ name: Mypy Static Type Checking
 on: [ "push", "pull_request" ]
 
 env:
-  PROJECT_DIR: "aio_mqtt"
+  PROJECT_DIR: "mio_mqtt"
 
 jobs:
   mypy:

@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "aio-mqtt"
+name = "mio-mqtt"
 version = "0.1.0"
 description = ""
 authors = ["SzakacsAdam <szakacs.adam.98@gmail.com>"]
