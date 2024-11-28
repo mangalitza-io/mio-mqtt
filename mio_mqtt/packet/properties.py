@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 from typing import Type, TypeAlias
 
-from aio_mqtt.packet.codec import (
+from mio_mqtt.packet.codec import (
     BinaryCodec,
     Codec,
     DecodeError,
@@ -14,7 +14,7 @@ from aio_mqtt.packet.codec import (
     TwoByteCodec,
     VariableByteCodec,
 )
-from aio_mqtt.types import All, Slots
+from mio_mqtt.types import All, Slots
 
 __all__: All = (
     "PropertyID",

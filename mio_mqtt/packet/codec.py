@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Literal, TypeAlias
 
-from aio_mqtt.types import Slots
+from mio_mqtt.types import Slots
 
 Length: TypeAlias = int
 ByteOrder: TypeAlias = Literal["little", "big"]

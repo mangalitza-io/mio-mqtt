@@ -1,5 +1,5 @@
-from aio_mqtt.packet.codec import StrCodec
-from aio_mqtt.packet.properties import (
+from mio_mqtt.packet.codec import StrCodec
+from mio_mqtt.packet.properties import (
     CONTENT_TYPE,
     CORRELATION_DATA,
     MESSAGE_EXPIRY_INTERVAL,
@@ -9,7 +9,7 @@ from aio_mqtt.packet.properties import (
     WILL_DELAY_INTERVAL,
     PropertyCodec,
 )
-from aio_mqtt.types import All, DictStrObject, Length, Slots
+from mio_mqtt.types import All, DictStrObject, Length, Slots
 
 __all__: All = (
     "WillMessage",
