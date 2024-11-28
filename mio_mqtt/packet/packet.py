@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from collections.abc import Iterable
 
-from aio_mqtt.types import All, Buffer, DictStrObject, Slots
+from mio_mqtt.types import All, Buffer, DictStrObject, Slots
 
 from .codec import OneByteCodec, StrCodec, TwoByteCodec, VariableByteCodec
 from .properties import (
