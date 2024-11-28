@@ -1,4 +1,4 @@
-from aio_mqtt.types import Slots
+from mio_mqtt.types import Slots
 
 BASE_EXCEPTION = Exception
 

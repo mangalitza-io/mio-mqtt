@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "aio-mqtt"
+name = "mio-mqtt"
 version = "0.1.0"
 description = ""
 authors = ["SzakacsAdam <szakacs.adam.98@gmail.com>"]
@@ -16,6 +16,8 @@ optional = true
 mypy = "^1.8.0"
 isort = "^5.13.2"
 ruff = "^0.8.0"
+pytest = "^8.3.3"
+pytest-asyncio = "^0.24.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -8,7 +8,7 @@ from asyncio import (
 from collections.abc import Callable
 from typing import Awaitable, Type, TypeAlias
 
-from aio_mqtt.packet.packet import (
+from mio_mqtt.packet.packet import (
     AuthPacket,
     ConnectPacket,
     DisconnectPacket,
@@ -22,7 +22,7 @@ from aio_mqtt.packet.packet import (
     SubscribePacket,
     UnSubscribePacket,
 )
-from aio_mqtt.types import Address
+from mio_mqtt.types import Address
 
 from .tcp_sock import TcpSocket
 

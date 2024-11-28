@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Iterator, Mapping
 
-from aio_mqtt.types import All, Slots
+from mio_mqtt.types import All, Slots
 
 __all__: All = (
     "ReasonCode",

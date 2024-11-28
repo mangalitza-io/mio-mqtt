@@ -1,6 +1,6 @@
 from typing import TypeAlias
 
-from aio_mqtt.types import All, Slots
+from mio_mqtt.types import All, Slots
 
 __all__: All = (
     "PacketID",

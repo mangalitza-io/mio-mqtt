@@ -162,4 +162,4 @@ cython_debug/
 .idea/
 
 references/
-aio_mqtt/__main__.py
+mio_mqtt/__main__.py
