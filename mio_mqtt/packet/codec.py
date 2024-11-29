@@ -83,6 +83,7 @@ class DecodeOverflowError(DecodeError, OverflowError):
 
 
 class Codec(metaclass=ABCMeta):
+    __slots__: Slots = tuple()
     @classmethod
     @abstractmethod
     def encode(cls, __data: object) -> bytearray: ...
@@ -96,6 +97,7 @@ class BinaryCodec(Codec):
     L_INT_LENGTH: int = 2
     L_INT_BYTEORDER: ByteOrder = "big"
     L_INT_IS_SIGNED: bool = False
+    __slots__: Slots = tuple()
 
     @classmethod
     def encode(cls, __data: bytes | bytearray | memoryview) -> bytearray:  # type: ignore[override]
