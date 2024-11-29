@@ -55,18 +55,13 @@ class _SocketOpts:
 
     @staticmethod
     def _so_reuseport() -> SockOpts:
-        SO_REUSEPORT: int
-        SOL_SOCKET: int
-        try:
-            from socket import SO_REUSEPORT, SOL_SOCKET
-        except ImportError:
+        if sys.platform != "win32":
             raise ImportError()
+        from socket import SO_REUSEPORT, SOL_SOCKET
         return ((SOL_SOCKET, SO_REUSEPORT, 1),)
 
     @staticmethod
     def _tcp_nodelay() -> SockOpts:
-        IPPROTO_TCP: int
-        TCP_NODELAY: int
         try:
             from socket import IPPROTO_TCP, TCP_NODELAY
         except ImportError:
@@ -75,8 +70,6 @@ class _SocketOpts:
 
     @staticmethod
     def _so_keepalive() -> SockOpts:
-        SO_KEEPALIVE: int
-        SOL_SOCKET: int
         try:
             from socket import SO_KEEPALIVE, SOL_SOCKET
         except ImportError:
@@ -85,10 +78,8 @@ class _SocketOpts:
 
     @staticmethod
     def _so_keepalive_settings() -> SockOpts:
-        IPPROTO_TCP: int
-        TCP_KEEPCNT: int
-        TCP_KEEPIDLE: int
-        TCP_KEEPINTVL: int
+        if sys.platform != "linux":
+            raise ImportError()
         try:
             from socket import (
                 IPPROTO_TCP,
@@ -106,12 +97,10 @@ class _SocketOpts:
 
     @staticmethod
     def _tcp_quickack() -> SockOpts:
-        IPPROTO_TCP: int
-        TCP_QUICKACK: int
-        try:
-            from socket import IPPROTO_TCP, TCP_QUICKACK
-        except ImportError:
+        if sys.platform == "win32" and sys.platform == "darwin":
             raise ImportError()
+        from socket import IPPROTO_TCP, TCP_QUICKACK
+
         return ((IPPROTO_TCP, TCP_QUICKACK, 1),)
 
     @staticmethod
