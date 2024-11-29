@@ -7,7 +7,7 @@ env:
 
 jobs:
   mypy-ubuntu:
-    name: Run mypy on multiple Python versions on Ubuntu
+    name: Run mypy on Ubuntu
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +33,7 @@ jobs:
           mypy $PROJECT_DIR
 
   mypy-macos:
-    name: Run mypy on multiple Python versions on Ubuntu
+    name: Run mypy on Macos
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +59,7 @@ jobs:
           mypy $PROJECT_DIR
 
   mypy-windows:
-    name: Run mypy on multiple Python versions on Ubuntu
+    name: Run mypy on Windows
     strategy:
       fail-fast: false
       matrix:
