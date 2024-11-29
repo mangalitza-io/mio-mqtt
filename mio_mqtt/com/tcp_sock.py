@@ -55,7 +55,7 @@ class _SocketOpts:
 
     @staticmethod
     def _so_reuseport() -> SockOpts:
-        if sys.platform != "win32":
+        if sys.platform == "win32":
             raise ImportError()
         from socket import SO_REUSEPORT, SOL_SOCKET
         return ((SOL_SOCKET, SO_REUSEPORT, 1),)
