@@ -160,7 +160,7 @@ class PropertyCodec:
 
     def encoded_by_id(self, properties: dict[int, object]) -> bytearray:
         return self._encoded(
-            ref_properties=self._properties_by_name,  # type: ignore[arg-type]
+            ref_properties=self._properties_by_id,  # type: ignore[arg-type]
             properties=properties,  # type: ignore[arg-type]
         )
 
@@ -180,10 +180,11 @@ class PropertyCodec:
         self, b_properties: bytearray
     ) -> tuple[Length, PropertyNameDecoded]:
         b_length, length = VariableByteCodec.decode(b_properties)
-        try:
-            b_prop_arr: bytearray = b_properties[b_length : b_length + length]
-        except IndexError:
-            raise
+
+        if len(b_properties) < b_length + length:
+            raise IndexError()
+
+        b_prop_arr: bytearray = b_properties[b_length : b_length + length]
         b_prop_arr_length = len(b_prop_arr)
         res: PropertyNameDecoded = {}
         i: int = 0
@@ -208,11 +209,11 @@ class PropertyCodec:
                 res[name] = d_val
             else:
                 before_val: object = res[name]
-                res[name] = (
-                    before_val + (d_val,)
-                    if isinstance(before_val, tuple)
-                    else (before_val, d_val)
-                )
+                if isinstance(before_val, list) is True:
+                    before_val.append(d_val)
+                else:
+                    print(f"{[d_val] = }")
+                    res[name] = [before_val, d_val]
 
         return b_length + length, res
 
