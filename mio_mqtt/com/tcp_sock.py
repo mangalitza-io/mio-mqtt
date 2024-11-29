@@ -10,9 +10,9 @@ from asyncio import (
 )
 from collections.abc import Callable
 from socket import AddressFamily, SocketKind, socket
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
-from mio_mqtt.types import Address, All, Slots, SockOpts, SockOpt
+from mio_mqtt.types import Address, All, Slots, SockOpts
 
 __all__: All = (
     "ProtocolFactory",
@@ -45,6 +45,8 @@ class _SocketOpts:
 
     @staticmethod
     def _so_reuseaddr() -> SockOpts:
+        SO_REUSEADDR: int
+        SOL_SOCKET: int
         try:
             from socket import SO_REUSEADDR, SOL_SOCKET
         except ImportError:
@@ -53,6 +55,8 @@ class _SocketOpts:
 
     @staticmethod
     def _so_reuseport() -> SockOpts:
+        SO_REUSEPORT: int
+        SOL_SOCKET: int
         try:
             from socket import SO_REUSEPORT, SOL_SOCKET
         except ImportError:
@@ -61,6 +65,8 @@ class _SocketOpts:
 
     @staticmethod
     def _tcp_nodelay() -> SockOpts:
+        IPPROTO_TCP: int
+        TCP_NODELAY: int
         try:
             from socket import IPPROTO_TCP, TCP_NODELAY
         except ImportError:
@@ -69,6 +75,8 @@ class _SocketOpts:
 
     @staticmethod
     def _so_keepalive() -> SockOpts:
+        SO_KEEPALIVE: int
+        SOL_SOCKET: int
         try:
             from socket import SO_KEEPALIVE, SOL_SOCKET
         except ImportError:
@@ -77,6 +85,10 @@ class _SocketOpts:
 
     @staticmethod
     def _so_keepalive_settings() -> SockOpts:
+        IPPROTO_TCP: int
+        TCP_KEEPCNT: int
+        TCP_KEEPIDLE: int
+        TCP_KEEPINTVL: int
         try:
             from socket import (
                 IPPROTO_TCP,
@@ -87,23 +99,26 @@ class _SocketOpts:
         except ImportError:
             raise ImportError()
         return (
-                cast(SockOpt, (IPPROTO_TCP, TCP_KEEPIDLE, 60)),
-                cast(SockOpt, (IPPROTO_TCP, TCP_KEEPINTVL, 10)),
-                cast(SockOpt, (IPPROTO_TCP, TCP_KEEPCNT, 5)),
-            )
+            (IPPROTO_TCP, TCP_KEEPIDLE, 60),
+            (IPPROTO_TCP, TCP_KEEPINTVL, 10),
+            (IPPROTO_TCP, TCP_KEEPCNT, 5),
+        )
 
     @staticmethod
     def _tcp_quickack() -> SockOpts:
+        IPPROTO_TCP: int
+        TCP_QUICKACK: int
         try:
             from socket import IPPROTO_TCP, TCP_QUICKACK
         except ImportError:
             raise ImportError()
-        return (
-            cast(SockOpt, (IPPROTO_TCP, TCP_QUICKACK, 1)),
-        )
+        return ((IPPROTO_TCP, TCP_QUICKACK, 1),)
 
     @staticmethod
     def _so_lowat() -> SockOpts:
+        SO_RCVLOWAT: int
+        SO_SNDLOWAT: int
+        SOL_SOCKET: int
         try:
             from socket import SO_RCVLOWAT, SO_SNDLOWAT, SOL_SOCKET
         except ImportError:
@@ -202,8 +217,10 @@ class TCPInet6Socket(_TcpIPSocket):
     FAMILY: AddressFamily = AddressFamily.AF_INET6
     __slots__: Slots = tuple()
 
-if sys.platform.startswith('win') is False:
-    __all__ = __all__ + ("TCPInetSocket",)
+
+if sys.platform != "win32":
+    __all__ = __all__ + ("TCPUnixSocket",)
+
     class TCPUnixSocket(TcpSocket):
         FAMILY: AddressFamily = AddressFamily.AF_UNIX
         __slots__: Slots = tuple()
