@@ -1,0 +1,157 @@
+on: [ "pull_request" ]
+
+env:
+  PROJECT_DIR: "mio_mqtt"
+  TEST_DIR: "tests"
+  TEST_UNIT_DIR: "tests/unit"
+  TEST_INTEGRATION_DIR: "tests/integration"
+  TEST_E2E_DIR: "tests/e2e"
+
+jobs:
+  mypy-on-tests:
+    name: Run mypy on Test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: "x64"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --no-root --with dev
+
+      - name: Run mypy on Tests
+        run: |
+          mypy "${TEST_DIR}"
+
+  ruff-lint-on-tests:
+    name: Lint with Ruff on Test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: "x64"
+
+      - name: Install Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          ruff --version
+
+      - name: Run Ruff on Tests
+        run: |
+          ruff check "${TEST_DIR}"
+
+  isort-check-on-tests:
+    name: Isort check on Test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: "x64"
+
+      - name: Install Isort
+        run: |
+          python -m pip install --upgrade pip
+          pip install isort
+          isort --version
+
+      - name: Run Isort on Tests
+        run: |
+          isort --check-only "${TEST_DIR}"
+
+  run-unit-tests:
+    name: Run Unit tests on multiple Python versions and platforms
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "pypy3.10", "3.10", "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-22.04, macos-latest, windows-latest ]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --no-root --with dev
+
+      - name: Run Unit Tests
+        run: |
+          pytest "${TEST_UNIT_DIR}" -n auto
+
+  run-integration-test:
+    name: Run Integration tests on multiple Python versions and platforms
+    if: |
+      (
+        github.event.pull_request.base.ref == 'main' ||
+        github.event.pull_request.base.ref == 'development'
+      )
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "pypy3.10", "3.10", "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-22.04, macos-latest, windows-latest ]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --no-root --with dev
+
+      - name: Run Integration Tests
+        run: |
+          pytest "${TEST_INTEGRATION_DIR}" -n auto
+
+  run-e2e-test:
+    name: Run Integration tests on multiple Python versions and platforms
+    if: github.event.pull_request.base.ref == 'main'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "pypy3.10", "3.10", "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-22.04, macos-latest, windows-latest ]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --no-root --with dev
+
+      - name: Run End to End Tests
+        run: |
+          pytest "${TEST_E2E_DIR}" -n auto
