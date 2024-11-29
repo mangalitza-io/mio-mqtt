@@ -1,4 +1,4 @@
-# # mypy: disable-error-code="unused-ignore, attr-defined, misc"
+# mypy: disable-error-code="unused-ignore, attr-defined, misc"
 from collections.abc import Callable
 
 from mio_mqtt.types import All, SockOpts
