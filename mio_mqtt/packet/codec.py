@@ -84,6 +84,7 @@ class DecodeOverflowError(DecodeError, OverflowError):
 
 class Codec(metaclass=ABCMeta):
     __slots__: Slots = tuple()
+
     @classmethod
     @abstractmethod
     def encode(cls, __data: object) -> bytearray: ...
@@ -233,7 +234,6 @@ class _IntCodec(Codec):
             raise DecodeTypeError()
 
         __b_int: bytes = __bytearray[0 : cls.LENGTH]
-
 
         try:
             __int: int = int.from_bytes(

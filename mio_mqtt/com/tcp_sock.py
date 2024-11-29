@@ -9,9 +9,9 @@ from asyncio import (
 )
 from collections.abc import Callable
 from socket import AddressFamily, SocketKind, socket
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
-from mio_mqtt.types import Address, All, Slots, SockOpts
+from mio_mqtt.types import Address, All, Slots, SockOpt, SockOpts
 
 __all__: All = (
     "ProtocolFactory",
@@ -31,6 +31,7 @@ class _SocketOpts:
             cls._so_reuseport,
             cls._tcp_nodelay,
             cls._so_keepalive,
+            cls._so_keepalive_settings,
             cls._tcp_quickack,
             cls._so_lowat,
         )
@@ -72,7 +73,10 @@ class _SocketOpts:
             from socket import SO_KEEPALIVE, SOL_SOCKET
         except ImportError:
             raise ImportError()
-        sock_opts: SockOpts = ((SOL_SOCKET, SO_KEEPALIVE, 1),)
+        return ((SOL_SOCKET, SO_KEEPALIVE, 1),)
+
+    @staticmethod
+    def _so_keepalive_settings() -> SockOpts:
         try:
             from socket import (
                 IPPROTO_TCP,
@@ -81,8 +85,8 @@ class _SocketOpts:
                 TCP_KEEPINTVL,
             )
         except ImportError:
-            return sock_opts
-        return sock_opts + (
+            raise ImportError()
+        return (
             (IPPROTO_TCP, TCP_KEEPIDLE, 60),
             (IPPROTO_TCP, TCP_KEEPINTVL, 10),
             (IPPROTO_TCP, TCP_KEEPCNT, 5),
@@ -94,7 +98,7 @@ class _SocketOpts:
             from socket import IPPROTO_TCP, TCP_QUICKACK
         except ImportError:
             raise ImportError()
-        return ((IPPROTO_TCP, TCP_QUICKACK, 1),)
+        return ((IPPROTO_TCP, TCP_QUICKACK, 1),)  #
 
     @staticmethod
     def _so_lowat() -> SockOpts:
