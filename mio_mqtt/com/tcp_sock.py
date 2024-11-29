@@ -11,7 +11,7 @@ from collections.abc import Callable
 from socket import AddressFamily, SocketKind, socket
 from typing import TypeAlias, cast
 
-from mio_mqtt.types import Address, All, Slots, SockOpt, SockOpts
+from mio_mqtt.types import Address, All, Slots, SockOpts
 
 __all__: All = (
     "ProtocolFactory",
@@ -86,10 +86,13 @@ class _SocketOpts:
             )
         except ImportError:
             raise ImportError()
-        return (
-            (IPPROTO_TCP, TCP_KEEPIDLE, 60),
-            (IPPROTO_TCP, TCP_KEEPINTVL, 10),
-            (IPPROTO_TCP, TCP_KEEPCNT, 5),
+        return cast(
+            SockOpts,
+            (
+                (IPPROTO_TCP, TCP_KEEPIDLE, 60),
+                (IPPROTO_TCP, TCP_KEEPINTVL, 10),
+                (IPPROTO_TCP, TCP_KEEPCNT, 5),
+            ),
         )
 
     @staticmethod
@@ -98,7 +101,7 @@ class _SocketOpts:
             from socket import IPPROTO_TCP, TCP_QUICKACK
         except ImportError:
             raise ImportError()
-        return ((IPPROTO_TCP, TCP_QUICKACK, 1),)  #
+        return cast(SockOpts, ((IPPROTO_TCP, TCP_QUICKACK, 1),))
 
     @staticmethod
     def _so_lowat() -> SockOpts:
