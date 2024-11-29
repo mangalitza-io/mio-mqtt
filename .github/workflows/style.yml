@@ -82,7 +82,7 @@ jobs:
 
       - name: Run mypy on Project
         run: |
-          mypy $PROJECT_DIR
+          mypy $env:PROJECT_DIR
         shell: pwsh
 
   ruff-lint:
