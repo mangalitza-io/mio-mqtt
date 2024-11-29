@@ -14,6 +14,8 @@ from typing import TypeAlias
 
 from mio_mqtt.types import Address, All, Slots, SockOpts
 
+from .sock_opts import _SocketOpts
+
 __all__: All = (
     "ProtocolFactory",
     "TcpSocket",
@@ -21,101 +23,6 @@ __all__: All = (
     "TCPInet6Socket",
 )
 ProtocolFactory: TypeAlias = Callable[[], Protocol]
-
-
-class _SocketOpts:
-    @classmethod
-    def gather_all(cls) -> SockOpts:
-        sock_opts_funcs: tuple[Callable[[], SockOpts], ...] = (
-            cls._so_reuseaddr,
-            cls._so_reuseport,
-            cls._tcp_nodelay,
-            cls._so_keepalive,
-            cls._so_keepalive_settings,
-            cls._tcp_quickack,
-            cls._so_lowat,
-        )
-        sock_opts: SockOpts = tuple()
-        for sock_opts_func in sock_opts_funcs:
-            try:
-                sock_opts = sock_opts + sock_opts_func()
-            except ImportError:
-                continue
-        return sock_opts
-
-    @staticmethod
-    def _so_reuseaddr() -> SockOpts:
-        SO_REUSEADDR: int
-        SOL_SOCKET: int
-        try:
-            from socket import SO_REUSEADDR, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        return ((SOL_SOCKET, SO_REUSEADDR, 1),)
-
-    @staticmethod
-    def _so_reuseport() -> SockOpts:
-        if sys.platform == "win32":
-            raise ImportError()
-        from socket import SO_REUSEPORT, SOL_SOCKET
-        return ((SOL_SOCKET, SO_REUSEPORT, 1),)
-
-    @staticmethod
-    def _tcp_nodelay() -> SockOpts:
-        try:
-            from socket import IPPROTO_TCP, TCP_NODELAY
-        except ImportError:
-            raise ImportError()
-        return ((IPPROTO_TCP, TCP_NODELAY, 1),)
-
-    @staticmethod
-    def _so_keepalive() -> SockOpts:
-        try:
-            from socket import SO_KEEPALIVE, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        return ((SOL_SOCKET, SO_KEEPALIVE, 1),)
-
-    @staticmethod
-    def _so_keepalive_settings() -> SockOpts:
-        if sys.platform != "linux":
-            raise ImportError()
-        try:
-            from socket import (
-                IPPROTO_TCP,
-                TCP_KEEPCNT,
-                TCP_KEEPIDLE,
-                TCP_KEEPINTVL,
-            )
-        except ImportError:
-            raise ImportError()
-        return (
-            (IPPROTO_TCP, TCP_KEEPIDLE, 60),
-            (IPPROTO_TCP, TCP_KEEPINTVL, 10),
-            (IPPROTO_TCP, TCP_KEEPCNT, 5),
-        )
-
-    @staticmethod
-    def _tcp_quickack() -> SockOpts:
-        if sys.platform == "win32" and sys.platform == "darwin":
-            raise ImportError()
-        from socket import IPPROTO_TCP, TCP_QUICKACK
-
-        return ((IPPROTO_TCP, TCP_QUICKACK, 1),)
-
-    @staticmethod
-    def _so_lowat() -> SockOpts:
-        SO_RCVLOWAT: int
-        SO_SNDLOWAT: int
-        SOL_SOCKET: int
-        try:
-            from socket import SO_RCVLOWAT, SO_SNDLOWAT, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        return (
-            (SOL_SOCKET, SO_RCVLOWAT, 1),
-            (SOL_SOCKET, SO_SNDLOWAT, 1),
-        )
 
 
 class TcpSocket(socket, metaclass=ABCMeta):
