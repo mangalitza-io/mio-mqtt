@@ -1,3 +1,4 @@
+import sys
 from abc import ABCMeta, abstractmethod
 from asyncio import (
     AbstractEventLoop,
@@ -18,7 +19,6 @@ __all__: All = (
     "TcpSocket",
     "TCPInetSocket",
     "TCPInet6Socket",
-    "TCPUnixSocket",
 )
 ProtocolFactory: TypeAlias = Callable[[], Protocol]
 
@@ -202,24 +202,25 @@ class TCPInet6Socket(_TcpIPSocket):
     FAMILY: AddressFamily = AddressFamily.AF_INET6
     __slots__: Slots = tuple()
 
+if sys.platform.startswith('win') is False:
+    __all__ = __all__ + ("TCPInetSocket",)
+    class TCPUnixSocket(TcpSocket):
+        FAMILY: AddressFamily = AddressFamily.AF_UNIX
+        __slots__: Slots = tuple()
 
-class TCPUnixSocket(TcpSocket):
-    FAMILY: AddressFamily = AddressFamily.AF_UNIX
-    __slots__: Slots = tuple()
-
-    async def create_connection(
-        self,
-        address: Address,
-        protocol_factory: ProtocolFactory,
-        loop: AbstractEventLoop,
-        **kwargs: object,
-    ) -> tuple[Transport, Protocol]:
-        await self.connect_async(address, loop=loop)
-        return await loop.create_unix_connection(
-            protocol_factory=protocol_factory,
-            path=None,
-            ssl=None,
-            sock=self,
-            server_hostname=None,
-            ssl_handshake_timeout=None,
-        )
+        async def create_connection(
+            self,
+            address: Address,
+            protocol_factory: ProtocolFactory,
+            loop: AbstractEventLoop,
+            **kwargs: object,
+        ) -> tuple[Transport, Protocol]:
+            await self.connect_async(address, loop=loop)
+            return await loop.create_unix_connection(
+                protocol_factory=protocol_factory,
+                path=None,
+                ssl=None,
+                sock=self,
+                server_hostname=None,
+                ssl_handshake_timeout=None,
+            )
