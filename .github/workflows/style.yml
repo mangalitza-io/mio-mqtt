@@ -31,7 +31,7 @@ jobs:
 
       - name: Run mypy on Project
         run: |
-          mypy "${PROJECT_DIR}"
+          mypy $PROJECT_DIR
 
   ruff-lint:
     name: Lint with Ruff
@@ -54,7 +54,7 @@ jobs:
 
       - name: Run Ruff on Project
         run: |
-          ruff check "${PROJECT_DIR}"
+          ruff check $PROJECT_DIR
 
   isort-check:
     name: Isort check
@@ -76,4 +76,4 @@ jobs:
 
       - name: Run Isort on Project
         run: |
-          isort --check-only "${PROJECT_DIR}"
+          isort --check-only $PROJECT_DIR
