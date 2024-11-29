@@ -109,8 +109,7 @@ class BinaryCodec(Codec):
             )
         except OverflowError:
             raise EncodeOverflowError()
-        except TypeError:
-            raise EncodeTypeError()
+
         try:
             __arr[cls.L_INT_LENGTH :] = __data
         except TypeError:
@@ -121,33 +120,18 @@ class BinaryCodec(Codec):
     def decode(cls, __bytearray: bytearray) -> BinaryDecoded:
         if len(__bytearray) < cls.L_INT_LENGTH:
             raise DecodeIndexError()
-        try:
-            b_length: bytes = __bytearray[0 : cls.L_INT_LENGTH]
-        except IndexError:
-            raise DecodeIndexError()
-        try:
-            length: int = int.from_bytes(
-                b_length,
-                byteorder=cls.L_INT_BYTEORDER,
-                signed=cls.L_INT_IS_SIGNED,
-            )
-        except ValueError:
-            raise DecodeValueError()
-        except TypeError:
-            raise DecodeTypeError()
 
-        if len(__bytearray) < cls.L_INT_LENGTH + length:
-            raise DecodeValueError()
-
-        try:
-            __bytes: bytes = __bytearray[
-                cls.L_INT_LENGTH : cls.L_INT_LENGTH + length
-            ]
-        except IndexError:
+        b_length: bytes = __bytearray[0 : cls.L_INT_LENGTH]
+        length: int = int.from_bytes(
+            b_length,
+            byteorder=cls.L_INT_BYTEORDER,
+            signed=cls.L_INT_IS_SIGNED,
+        )
+        __bytes: bytes = __bytearray[
+            cls.L_INT_LENGTH : cls.L_INT_LENGTH + length
+        ]
+        if len(__bytes) != length:
             raise DecodeIndexError()
-        else:
-            if len(__bytes) != length:
-                raise DecodeValueError()
         return cls.L_INT_LENGTH + length, bytearray(__bytes)
 
 
@@ -240,16 +224,14 @@ class _IntCodec(Codec):
 
     @classmethod
     def decode(cls, __bytearray: bytearray) -> IntDecoded:
-        if len(__bytearray) < cls.LENGTH:
-            raise DecodeIndexError()
         try:
-            __b_int: bytes = __bytearray[0 : cls.LENGTH]
-        except IndexError:
-            raise DecodeIndexError()
+            if len(__bytearray) < cls.LENGTH:
+                raise DecodeIndexError()
         except TypeError:
             raise DecodeTypeError()
-        except ValueError:
-            raise DecodeValueError()
+
+        __b_int: bytes = __bytearray[0 : cls.LENGTH]
+
 
         try:
             __int: int = int.from_bytes(
@@ -257,10 +239,6 @@ class _IntCodec(Codec):
             )
         except TypeError:
             raise DecodeTypeError()
-        except ValueError:
-            raise DecodeValueError()
-        except OverflowError:
-            raise DecodeOverflowError()
 
         return cls.LENGTH, __int
 

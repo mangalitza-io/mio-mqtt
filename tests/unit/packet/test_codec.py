@@ -22,6 +22,7 @@ from mio_mqtt.packet.codec import (
     StrPairCodec,
     TwoByteCodec,
     VariableByteCodec,
+    _IntCodec,
 )
 
 
@@ -315,6 +316,8 @@ class TestBinaryCodec:
     def test_encode_invalid_data_type_raises_type_error(self) -> None:
         with pytest.raises(EncodeTypeError):
             BinaryCodec.encode("invalid_type")  # type: ignore[arg-type]
+        with pytest.raises(EncodeTypeError):
+            BinaryCodec.encode(None)  # type: ignore[arg-type]
 
     def test_decode_valid_data(self) -> None:
         data = b"test"
@@ -340,7 +343,7 @@ class TestBinaryCodec:
 
     def test_decode_invalid_length_raises_value_error(self) -> None:
         encoded = bytearray([0xFF, 0xFF]) + b"invalid_data"
-        with pytest.raises(DecodeValueError):
+        with pytest.raises(DecodeIndexError):
             BinaryCodec.decode(encoded)
 
     def test_decode_index_error_on_short_data(self) -> None:
@@ -354,7 +357,7 @@ class TestBinaryCodec:
             byteorder=BinaryCodec.L_INT_BYTEORDER,
         )
         encoded = bytearray(length + b"123")
-        with pytest.raises(DecodeValueError):
+        with pytest.raises(DecodeIndexError):
             BinaryCodec.decode(encoded)
 
     def test_decode_index_error_on_missing_length_field(self) -> None:
@@ -369,6 +372,19 @@ class TestBinaryCodec:
         decoded_length, decoded_data = BinaryCodec.decode(encoded)
         assert decoded_length == len(encoded)
         assert decoded_data == bytearray(data)
+
+    def test_encode_raises_overflow_error(self) -> None:
+        with pytest.raises(EncodeOverflowError):
+            BinaryCodec.encode(b"x" * (2**16 + 1))
+
+    def test_decode_too_short_raises_index_error(self) -> None:
+        with pytest.raises(DecodeIndexError):
+            BinaryCodec.decode(bytearray([0x00]))
+
+    def test_decode_index_error_on_insufficient_data(self) -> None:
+        encoded = bytearray([0x00, 0x05]) + b"12"
+        with pytest.raises(DecodeIndexError):
+            BinaryCodec.decode(encoded)
 
 
 class TestStrCodec:
@@ -397,7 +413,7 @@ class TestStrCodec:
         with pytest.raises(EncodeAttributeError):
             StrCodec.encode(12345)  # type: ignore[arg-type]
 
-    def test_encode_unicode_error_raises_value_error(self) -> None:
+    def test_encode_unicode_error_raises_index_error(self) -> None:
         invalid_str = "test \udc80"
         with pytest.raises(EncodeValueError):
             StrCodec.encode(invalid_str)
@@ -416,9 +432,9 @@ class TestStrCodec:
         assert decoded_length == len(encoded)
         assert decoded_string == data
 
-    def test_decode_invalid_bytearray_raises_value_error(self) -> None:
+    def test_decode_invalid_bytearray_raises_index_error(self) -> None:
         invalid_bytearray = bytearray([0xFF, 0xFF]) + b"invalid_data"
-        with pytest.raises(DecodeValueError):
+        with pytest.raises(DecodeIndexError):
             StrCodec.decode(invalid_bytearray)
 
     def test_decode_unicode_error_raises_value_error(self) -> None:
@@ -507,109 +523,63 @@ class TestStrPairCodec:
 
 
 class TestIntCodec:
-    def test_one_byte_codec_encode_valid_data(self) -> None:
-        encoded = OneByteCodec.encode(127)
-        assert isinstance(encoded, bytearray)
-        assert encoded == bytearray([127])
+    def setup_method(self) -> None:
+        class CustomIntCodec(_IntCodec):
+            LENGTH = 2
 
-    def test_one_byte_codec_encode_min_value(self) -> None:
-        encoded = OneByteCodec.encode(0)
-        assert isinstance(encoded, bytearray)
-        assert encoded == bytearray([0])
+        self.int_codec = CustomIntCodec
 
-    def test_one_byte_codec_encode_overflow_raises_error(self) -> None:
-        with pytest.raises(EncodeOverflowError):
-            OneByteCodec.encode(256)
-
-    def test_one_byte_codec_decode_valid_data(self) -> None:
-        decoded_length, decoded_value = OneByteCodec.decode(bytearray([127]))
-        assert decoded_length == 1
-        assert decoded_value == 127
-
-    def test_one_byte_codec_decode_insufficient_data_raises_error(
-        self,
-    ) -> None:
-        with pytest.raises(DecodeIndexError):
-            OneByteCodec.decode(bytearray([]))
-
-    def test_two_byte_codec_encode_valid_data(self) -> None:
-        encoded = TwoByteCodec.encode(32767)
-        assert isinstance(encoded, bytearray)
-        assert encoded == bytearray([0x7F, 0xFF])
-
-    def test_two_byte_codec_encode_min_value(self) -> None:
-        encoded = TwoByteCodec.encode(0)
-        assert isinstance(encoded, bytearray)
-        assert encoded == bytearray([0x00, 0x00])
-
-    def test_two_byte_codec_encode_overflow_raises_error(self) -> None:
-        with pytest.raises(EncodeOverflowError):
-            TwoByteCodec.encode(65536)
-
-    def test_two_byte_codec_decode_valid_data(self) -> None:
-        decoded_length, decoded_value = TwoByteCodec.decode(
-            bytearray([0x7F, 0xFF])
+    def test_encode_valid_int(self) -> None:
+        result = self.int_codec.encode(42)
+        assert result == (42).to_bytes(
+            length=self.int_codec.LENGTH, byteorder=self.int_codec.BYTEORDER
         )
-        assert decoded_length == 2
-        assert decoded_value == 32767
 
-    def test_two_byte_codec_decode_insufficient_data_raises_error(
-        self,
-    ) -> None:
-        with pytest.raises(DecodeIndexError):
-            TwoByteCodec.decode(bytearray([0x7F]))
-
-    def test_four_byte_codec_encode_valid_data(self) -> None:
-        encoded = FourByteCodec.encode(2147483647)
-        assert isinstance(encoded, bytearray)
-        assert encoded == bytearray([0x7F, 0xFF, 0xFF, 0xFF])
-
-    def test_four_byte_codec_encode_min_value(self) -> None:
-        encoded = FourByteCodec.encode(0)
-        assert isinstance(encoded, bytearray)
-        assert encoded == bytearray([0x00, 0x00, 0x00, 0x00])
-
-    def test_four_byte_codec_encode_overflow_raises_error(self) -> None:
+    def test_encode_large_int_raises_overflow_error(self) -> None:
+        large_int: int = 2 ** (8 * self.int_codec.LENGTH)
         with pytest.raises(EncodeOverflowError):
-            FourByteCodec.encode(2**32)
+            self.int_codec.encode(large_int)
 
-    def test_four_byte_codec_decode_valid_data(self) -> None:
-        decoded_length, decoded_value = FourByteCodec.decode(
-            bytearray([0x7F, 0xFF, 0xFF, 0xFF])
-        )
-        assert decoded_length == 4
-        assert decoded_value == 2147483647
+    def test_encode_negative_int_raises_error_if_unsigned(self) -> None:
+        with pytest.raises(EncodeOverflowError):
+            self.int_codec.encode(-1)
 
-    def test_four_byte_codec_decode_insufficient_data_raises_error(
-        self,
-    ) -> None:
-        with pytest.raises(DecodeIndexError):
-            FourByteCodec.decode(bytearray([0x7F, 0xFF]))
-
-    def test_codec_encode_invalid_type_raises_type_error(self) -> None:
+    def test_encode_invalid_type_raises_error(self) -> None:
         with pytest.raises(EncodeTypeError):
-            OneByteCodec.encode("invalid")  # type: ignore[arg-type]
+            self.int_codec.encode("invalid")  # type: ignore[arg-type]
 
-    def test_encode_and_decode_consistency_one_byte(self) -> None:
-        data = 127
-        encoded = OneByteCodec.encode(data)
-        decoded_length, decoded_value = OneByteCodec.decode(encoded)
-        assert decoded_length == 1
-        assert decoded_value == data
+    def test_decode_valid_bytearray(self) -> None:
+        test_bytearray = (1234).to_bytes(
+            length=self.int_codec.LENGTH, byteorder=self.int_codec.BYTEORDER
+        )
+        length, decoded_int = self.int_codec.decode(bytearray(test_bytearray))
+        assert length == self.int_codec.LENGTH
+        assert decoded_int == 1234
 
-    def test_encode_and_decode_consistency_two_byte(self) -> None:
-        data = 32767
-        encoded = TwoByteCodec.encode(data)
-        decoded_length, decoded_value = TwoByteCodec.decode(encoded)
-        assert decoded_length == 2
-        assert decoded_value == data
+    def test_decode_with_insufficient_length_raises_index_error(self) -> None:
+        short_bytearray = (42).to_bytes(
+            length=self.int_codec.LENGTH - 1,
+            byteorder=self.int_codec.BYTEORDER,
+        )
+        with pytest.raises(DecodeIndexError):
+            self.int_codec.decode(bytearray(short_bytearray))
 
-    def test_encode_and_decode_consistency_four_byte(self) -> None:
-        data = 2147483647
-        encoded = FourByteCodec.encode(data)
-        decoded_length, decoded_value = FourByteCodec.decode(encoded)
-        assert decoded_length == 4
-        assert decoded_value == data
+    def test_decode_with_extra_bytes_ignores_excess(self) -> None:
+        test_bytearray = (1234).to_bytes(
+            length=self.int_codec.LENGTH, byteorder=self.int_codec.BYTEORDER
+        )
+        extended_bytearray = bytearray(test_bytearray + b"\x00" * 5)
+        length, decoded_int = self.int_codec.decode(extended_bytearray)
+        assert length == self.int_codec.LENGTH
+        assert decoded_int == 1234
+
+    def test_decode_invalid_type_raises_error(self) -> None:
+        with pytest.raises(DecodeTypeError):
+            self.int_codec.decode("not a bytearray")  # type: ignore[arg-type]
+
+    def test_decode_non_iterable_raises_error(self) -> None:
+        with pytest.raises(DecodeTypeError):
+            self.int_codec.decode(None)  # type: ignore[arg-type]
 
 
 class TestVariableByteCodec:
