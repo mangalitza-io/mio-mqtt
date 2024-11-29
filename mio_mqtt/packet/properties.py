@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterable
-from typing import Type, TypeAlias
+from typing import Type, TypeAlias, cast
 
 from mio_mqtt.packet.codec import (
     BinaryCodec,
@@ -210,7 +210,7 @@ class PropertyCodec:
             else:
                 before_val: object = res[name]
                 if isinstance(before_val, list) is True:
-                    before_val.append(d_val)
+                    cast(list[object], before_val).append(d_val)
                 else:
                     print(f"{[d_val] = }")
                     res[name] = [before_val, d_val]
