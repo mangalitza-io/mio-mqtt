@@ -1,5 +1,3 @@
-from abc import abstractmethod
-
 import pytest
 
 from mio_mqtt.packet.codec import (
@@ -16,11 +14,8 @@ from mio_mqtt.packet.codec import (
     EncodeOverflowError,
     EncodeTypeError,
     EncodeValueError,
-    FourByteCodec,
-    OneByteCodec,
     StrCodec,
     StrPairCodec,
-    TwoByteCodec,
     VariableByteCodec,
     _IntCodec,
 )

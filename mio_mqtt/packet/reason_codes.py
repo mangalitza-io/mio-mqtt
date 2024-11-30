@@ -1,5 +1,4 @@
 from collections.abc import Iterable, Iterator, Mapping
-from enum import Enum
 
 from mio_mqtt.types import All, Slots
 
