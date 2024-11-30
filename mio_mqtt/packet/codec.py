@@ -237,7 +237,7 @@ class _IntCodec(Codec):
 
         try:
             __int: int = int.from_bytes(
-                bytes=__b_int, byteorder=cls.BYTEORDER, signed=cls.IS_SIGNED
+                __b_int, byteorder=cls.BYTEORDER, signed=cls.IS_SIGNED
             )
         except TypeError:
             raise DecodeTypeError()
