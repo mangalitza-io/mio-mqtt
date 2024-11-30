@@ -28,7 +28,7 @@ jobs:
 
       - name: Run mypy on Tests
         run: |
-          mypy "${TEST_DIR}"
+          poetry run python -m mypy "${TEST_DIR}"
 
   ruff-lint-on-tests:
     name: Lint with Ruff on Test
@@ -85,6 +85,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -127,6 +129,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -155,7 +159,7 @@ jobs:
         shell: pwsh
 
   run-e2e-test:
-    name: Run Integration tests on multiple Python versions and platforms
+    name: Run End to End tests on multiple Python versions and platforms
     if: github.event.pull_request.base.ref == 'main'
     strategy:
       fail-fast: false
@@ -165,6 +169,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
