@@ -6,13 +6,53 @@ env:
   PROJECT_DIR: "mio_mqtt"
 
 jobs:
-  mypy:
-    name: Run mypy on multiple Python versions
-    runs-on: ubuntu-22.04
+  mypy-simple:
+    name: Run mypy
+    if: github.event_name == 'push'
     strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+          mypy --version
+
+      - name: Linux Mypy
+        if: runner.os == 'Linux'
+        run: |
+          mypy $PROJECT_DIR
+
+      - name: Windows Mypy
+        if: runner.os == 'Windows'
+        run: |
+          mypy $env:PROJECT_DIR
+        shell: pwsh
+
+      - name: macOS Mypy
+        if: runner.os == 'macOS'
+        run: |
+          mypy $PROJECT_DIR
+
+  mypy-ubuntu:
+    name: Run mypy on Ubuntu
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
       matrix:
         python-version: [ "pypy3.10", "3.10", "3.11", "3.12", "3.13" ]
 
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -27,9 +67,64 @@ jobs:
           pip install mypy
           mypy --version
 
-      - name: Run mypy
+      - name: Run mypy on Project
         run: |
-          mypy "${PROJECT_DIR}"
+          mypy $PROJECT_DIR
+
+  mypy-macos:
+    name: Run mypy on Macos
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "pypy3.10", "3.10", "3.11", "3.12", "3.13" ]
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+          mypy --version
+
+      - name: Run mypy on Project
+        run: |
+          mypy $PROJECT_DIR
+
+  mypy-windows:
+    name: Run mypy on Windows
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "pypy3.10", "3.10", "3.11", "3.12", "3.13" ]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+          mypy --version
+
+      - name: Run mypy on Project
+        run: |
+          mypy $env:PROJECT_DIR
+        shell: pwsh
 
   ruff-lint:
     name: Lint with Ruff
@@ -50,9 +145,9 @@ jobs:
           pip install ruff
           ruff --version
 
-      - name: Run Ruff
+      - name: Run Ruff on Project
         run: |
-          ruff check "${PROJECT_DIR}"
+          ruff check $PROJECT_DIR
 
   isort-check:
     name: Isort check
@@ -72,6 +167,6 @@ jobs:
           pip install isort
           isort --version
 
-      - name: Run Isort
+      - name: Run Isort on Project
         run: |
-          isort --check-only "${PROJECT_DIR}"
+          isort --check-only $PROJECT_DIR

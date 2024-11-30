@@ -18,7 +18,132 @@ isort = "^5.13.2"
 ruff = "^0.8.0"
 pytest = "^8.3.3"
 pytest-asyncio = "^0.24.0"
+pytest-cov = "^6.0.0"
+pytest-mock = "^3.14.0"
+pytest-xdist = {extras = ["psutil"], version = "^3.6.1"}
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 79
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+line-length = 79
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.mypy]
+# Import discovery
+ignore_missing_imports = true
+# Platform configuration
+# Disallow dynamic typing
+disallow_any_unimported = true
+disallow_any_expr = true
+disallow_any_decorated = true
+disallow_any_explicit = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+# Untyped definitions and calls
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+# None and Optional handling
+# Configuring warnings
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_return_any = true
+warn_unreachable = true
+# Suppressing errors
+ignore_errors = false
+# Miscellaneous strictness flags
+allow_untyped_globals = false
+allow_redefinition = false
+strict_equality = true
+strict = true
+# Configuring error messages
+show_error_context = true
+pretty = true
+color_output = true
+show_absolute_path = true
+force_uppercase_builtins = false
+force_union_syntax = false
+# Incremental mode
+incremental = true
+cache_dir = ".mypy_cache"
+sqlite_cache = false
+cache_fine_grained = false
+skip_version_check = false
+skip_cache_mtime_checks = false
+# Advanced options
+## plugins = comma-separated list of strings
+pdb = false
+show_traceback = false
+raise_exceptions = false
+## custom_typing_module = string
+## custom_typeshed_dir = string
+warn_incomplete_stub = false
+# Report generation
+#   If these options are set,
+#   mypy will generate a report in the specified format into the specified directory.
+## any_exprs_report = "string"
+## cobertura_xml_report = "string"
+## html_report  = "string"
+## linecount_report  = "string"
+## linecoverage_report  = "string"
+## lineprecision_report  = "string"
+## txt_report   = "string"
+## xml_report   = "string"
+# Miscellaneous

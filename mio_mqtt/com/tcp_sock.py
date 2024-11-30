@@ -1,3 +1,4 @@
+import sys
 from abc import ABCMeta, abstractmethod
 from asyncio import (
     AbstractEventLoop,
@@ -13,99 +14,15 @@ from typing import TypeAlias
 
 from mio_mqtt.types import Address, All, Slots, SockOpts
 
+from .sock_opts import _SocketOpts
+
 __all__: All = (
     "ProtocolFactory",
     "TcpSocket",
     "TCPInetSocket",
     "TCPInet6Socket",
-    "TCPUnixSocket",
 )
 ProtocolFactory: TypeAlias = Callable[[], Protocol]
-
-
-class _SocketOpts:
-    @classmethod
-    def gather_all(cls) -> SockOpts:
-        sock_opts_funcs: tuple[Callable[[], SockOpts], ...] = (
-            cls._so_reuseaddr,
-            cls._so_reuseport,
-            cls._tcp_nodelay,
-            cls._so_keepalive,
-            cls._tcp_quickack,
-            cls._so_lowat,
-        )
-        sock_opts: SockOpts = tuple()
-        for sock_opts_func in sock_opts_funcs:
-            try:
-                sock_opts = sock_opts + sock_opts_func()
-            except ImportError:
-                continue
-        return sock_opts
-
-    @staticmethod
-    def _so_reuseaddr() -> SockOpts:
-        try:
-            from socket import SO_REUSEADDR, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        return ((SOL_SOCKET, SO_REUSEADDR, 1),)
-
-    @staticmethod
-    def _so_reuseport() -> SockOpts:
-        try:
-            from socket import SO_REUSEPORT, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        return ((SOL_SOCKET, SO_REUSEPORT, 1),)
-
-    @staticmethod
-    def _tcp_nodelay() -> SockOpts:
-        try:
-            from socket import IPPROTO_TCP, TCP_NODELAY
-        except ImportError:
-            raise ImportError()
-        return ((IPPROTO_TCP, TCP_NODELAY, 1),)
-
-    @staticmethod
-    def _so_keepalive() -> SockOpts:
-        try:
-            from socket import SO_KEEPALIVE, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        sock_opts: SockOpts = ((SOL_SOCKET, SO_KEEPALIVE, 1),)
-        try:
-            from socket import (
-                IPPROTO_TCP,
-                TCP_KEEPCNT,
-                TCP_KEEPIDLE,
-                TCP_KEEPINTVL,
-            )
-        except ImportError:
-            return sock_opts
-        return sock_opts + (
-            (IPPROTO_TCP, TCP_KEEPIDLE, 60),
-            (IPPROTO_TCP, TCP_KEEPINTVL, 10),
-            (IPPROTO_TCP, TCP_KEEPCNT, 5),
-        )
-
-    @staticmethod
-    def _tcp_quickack() -> SockOpts:
-        try:
-            from socket import IPPROTO_TCP, TCP_QUICKACK
-        except ImportError:
-            raise ImportError()
-        return ((IPPROTO_TCP, TCP_QUICKACK, 1),)
-
-    @staticmethod
-    def _so_lowat() -> SockOpts:
-        try:
-            from socket import SO_RCVLOWAT, SO_SNDLOWAT, SOL_SOCKET
-        except ImportError:
-            raise ImportError()
-        return (
-            (SOL_SOCKET, SO_RCVLOWAT, 1),
-            (SOL_SOCKET, SO_SNDLOWAT, 1),
-        )
 
 
 class TcpSocket(socket, metaclass=ABCMeta):
@@ -197,23 +114,26 @@ class TCPInet6Socket(_TcpIPSocket):
     __slots__: Slots = tuple()
 
 
-class TCPUnixSocket(TcpSocket):
-    FAMILY: AddressFamily = AddressFamily.AF_UNIX
-    __slots__: Slots = tuple()
+if sys.platform != "win32":
+    __all__ = __all__ + ("TCPUnixSocket",)
 
-    async def create_connection(
-        self,
-        address: Address,
-        protocol_factory: ProtocolFactory,
-        loop: AbstractEventLoop,
-        **kwargs: object,
-    ) -> tuple[Transport, Protocol]:
-        await self.connect_async(address, loop=loop)
-        return await loop.create_unix_connection(
-            protocol_factory=protocol_factory,
-            path=None,
-            ssl=None,
-            sock=self,
-            server_hostname=None,
-            ssl_handshake_timeout=None,
-        )
+    class TCPUnixSocket(TcpSocket):
+        FAMILY: AddressFamily = AddressFamily.AF_UNIX
+        __slots__: Slots = tuple()
+
+        async def create_connection(
+            self,
+            address: Address,
+            protocol_factory: ProtocolFactory,
+            loop: AbstractEventLoop,
+            **kwargs: object,
+        ) -> tuple[Transport, Protocol]:
+            await self.connect_async(address, loop=loop)
+            return await loop.create_unix_connection(
+                protocol_factory=protocol_factory,
+                path=None,
+                ssl=None,
+                sock=self,
+                server_hostname=None,
+                ssl_handshake_timeout=None,
+            )

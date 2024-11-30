@@ -4,7 +4,6 @@ from typing import TypeAlias
 All: TypeAlias = tuple[str, ...]
 Slots: TypeAlias = tuple[str, ...]
 DictStrObject: TypeAlias = dict[str, object]
-
 Length: TypeAlias = int
 Buffer: TypeAlias = bytes | bytearray | memoryview
 

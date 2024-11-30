@@ -220,7 +220,7 @@ class ConnectPacket(Packet):
     @classmethod
     def from_bytes(  # type: ignore[empty-body]
         cls, fixed_byte: int, packet_body: bytearray
-    ) -> "Packet":
+    ) -> "ConnectPacket":
         # TODO fix this.
         pass
 
@@ -432,7 +432,9 @@ class PublishPacket(Packet):
         )
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PublishPacket":
         dup: bool = bool((fixed_byte >> 3) & 0x01)
         qos: int = (fixed_byte >> 1) & 0x03
         retain: bool = bool(fixed_byte & 0x01)
@@ -509,7 +511,9 @@ class PubAckPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PubAckPacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -581,7 +585,9 @@ class PubRecPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PubRecPacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -649,7 +655,9 @@ class PubRelPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PubRelPacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -717,7 +725,9 @@ class PubCompPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "PubCompPacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -864,7 +874,9 @@ class SubAckPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "SubAckPacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -927,7 +939,9 @@ class UnSubscribePacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "UnSubscribePacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -1006,7 +1020,9 @@ class UnSubAckPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "UnSubAckPacket":
         offset: int = 0
         packet_id_len, packet_id = TwoByteCodec.decode(packet_body[offset:])
         offset += packet_id_len
@@ -1147,7 +1163,9 @@ class DisconnectPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "DisconnectPacket":
         offset: int = 0
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1
@@ -1205,7 +1223,9 @@ class AuthPacket(Packet):
             self._properties = {}
 
     @classmethod
-    def from_bytes(cls, fixed_byte: int, packet_body: bytearray) -> "Packet":
+    def from_bytes(
+        cls, fixed_byte: int, packet_body: bytearray
+    ) -> "AuthPacket":
         offset: int = 0
         reason_code: ReasonCode = cls.REASON_CODE[packet_body[offset]]
         offset += 1

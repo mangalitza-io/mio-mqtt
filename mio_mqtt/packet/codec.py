@@ -1,8 +1,35 @@
 from abc import ABCMeta, abstractmethod
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, cast
 
-from mio_mqtt.types import Slots
+from mio_mqtt.types import All, Slots
 
+__all__: All = (
+    "Length",
+    "ByteOrder",
+    "BinaryDecoded",
+    "StrDecoded",
+    "StrPairDecoded",
+    "IntDecoded",
+    "CodecError",
+    "EncodeError",
+    "EncodeTypeError",
+    "EncodeAttributeError",
+    "EncodeValueError",
+    "EncodeOverflowError",
+    "DecodeError",
+    "DecodeIndexError",
+    "DecodeTypeError",
+    "DecodeValueError",
+    "DecodeOverflowError",
+    "Codec",
+    "BinaryCodec",
+    "StrCodec",
+    "StrPairCodec",
+    "OneByteCodec",
+    "TwoByteCodec",
+    "FourByteCodec",
+    "VariableByteCodec",
+)
 Length: TypeAlias = int
 ByteOrder: TypeAlias = Literal["little", "big"]
 BinaryDecoded: TypeAlias = tuple[Length, bytearray]
@@ -20,6 +47,10 @@ class EncodeError(CodecError):
 
 
 class EncodeTypeError(EncodeError, TypeError):
+    __slots__: Slots = tuple()
+
+
+class EncodeAttributeError(EncodeError, AttributeError):
     __slots__: Slots = tuple()
 
 
@@ -52,6 +83,8 @@ class DecodeOverflowError(DecodeError, OverflowError):
 
 
 class Codec(metaclass=ABCMeta):
+    __slots__: Slots = tuple()
+
     @classmethod
     @abstractmethod
     def encode(cls, __data: object) -> bytearray: ...
@@ -65,49 +98,43 @@ class BinaryCodec(Codec):
     L_INT_LENGTH: int = 2
     L_INT_BYTEORDER: ByteOrder = "big"
     L_INT_IS_SIGNED: bool = False
+    __slots__: Slots = tuple()
 
     @classmethod
     def encode(cls, __data: bytes | bytearray | memoryview) -> bytearray:  # type: ignore[override]
-        __arr: bytearray = bytearray(cls.L_INT_LENGTH + len(__data))
+        try:
+            __arr: bytearray = bytearray(cls.L_INT_LENGTH + len(__data))
+        except TypeError:
+            raise EncodeTypeError()
         try:
             __arr[0:2] = len(__data).to_bytes(
                 length=cls.L_INT_LENGTH, byteorder=cls.L_INT_BYTEORDER
             )
         except OverflowError:
             raise EncodeOverflowError()
+
+        try:
+            __arr[cls.L_INT_LENGTH :] = __data
         except TypeError:
             raise EncodeTypeError()
-
-        __arr[cls.L_INT_LENGTH :] = __data
         return __arr
 
     @classmethod
     def decode(cls, __bytearray: bytearray) -> BinaryDecoded:
-        try:
-            b_length: bytes = __bytearray[0 : cls.L_INT_LENGTH]
-        except IndexError:
+        if len(__bytearray) < cls.L_INT_LENGTH:
             raise DecodeIndexError()
-        try:
-            length: int = int.from_bytes(
-                b_length,
-                byteorder=cls.L_INT_BYTEORDER,
-                signed=cls.L_INT_IS_SIGNED,
-            )
-        except ValueError:
-            raise DecodeValueError()
-        except TypeError:
-            raise DecodeTypeError()
 
-        try:
-            __bytes: bytes = __bytearray[
-                cls.L_INT_LENGTH : cls.L_INT_LENGTH + length
-            ]
-        except IndexError:
+        b_length: bytes = __bytearray[0 : cls.L_INT_LENGTH]
+        length: int = int.from_bytes(
+            b_length,
+            byteorder=cls.L_INT_BYTEORDER,
+            signed=cls.L_INT_IS_SIGNED,
+        )
+        __bytes: bytes = __bytearray[
+            cls.L_INT_LENGTH : cls.L_INT_LENGTH + length
+        ]
+        if len(__bytes) != length:
             raise DecodeIndexError()
-        else:
-            if len(__bytes) != length:
-                raise DecodeValueError()
-
         return cls.L_INT_LENGTH + length, bytearray(__bytes)
 
 
@@ -124,7 +151,7 @@ class StrCodec(BinaryCodec):
                 encoding=cls.ENCODING, errors=cls.ERRORS
             )
         except AttributeError:
-            raise EncodeTypeError(__data)
+            raise EncodeAttributeError(__data)
         except UnicodeEncodeError:
             raise EncodeValueError(__data)
 
@@ -143,23 +170,30 @@ class StrCodec(BinaryCodec):
 
 
 class StrPairCodec(StrCodec):
-    """
-    # TODO fix
-        "user_property": [("key1", "value1"), ("key2", "value2")]
-    """
-
     __slots__: Slots = tuple()
 
     @classmethod
-    def encode(cls, __data: tuple[str, str]) -> bytearray:  # type: ignore[override]
+    def encode(
+        cls,
+        __data: tuple[str, str] | tuple[tuple[str, str], ...],  # type: ignore[override]
+    ) -> bytearray:
+        def encode_one(__enc: tuple[str, str]) -> bytearray:
+            try:
+                __str_key, __str_val = __enc
+            except ValueError:
+                raise EncodeValueError()
+            __arr: bytearray = bytearray()
+            __arr += super(StrPairCodec, cls).encode(__str_key)
+            __arr += super(StrPairCodec, cls).encode(__str_val)
+            return __arr
+
         try:
-            __str_key, __str_val = __data
-        except ValueError:
-            raise EncodeValueError()
-        __arr: bytearray = bytearray()
-        __arr += super(StrPairCodec, cls).encode(__str_key)
-        __arr += super(StrPairCodec, cls).encode(__str_val)
-        return __arr
+            return encode_one(cast(tuple[str, str], __data))
+        except EncodeAttributeError:
+            __res: bytearray = bytearray()
+            for __item in __data:
+                __res += encode_one(cast(tuple[str, str], __item))
+            return __res
 
     @classmethod
     def decode(cls, __bytearray: bytearray) -> StrPairDecoded:  # type: ignore[override]
@@ -194,24 +228,19 @@ class _IntCodec(Codec):
     @classmethod
     def decode(cls, __bytearray: bytearray) -> IntDecoded:
         try:
-            __b_int: bytes = __bytearray[0 : cls.LENGTH]
-        except IndexError:
-            raise DecodeIndexError()
+            if len(__bytearray) < cls.LENGTH:
+                raise DecodeIndexError()
         except TypeError:
             raise DecodeTypeError()
-        except ValueError:
-            raise DecodeValueError()
+
+        __b_int: bytes = __bytearray[0 : cls.LENGTH]
 
         try:
             __int: int = int.from_bytes(
-                bytes=__b_int, byteorder=cls.BYTEORDER, signed=cls.IS_SIGNED
+                __b_int, byteorder=cls.BYTEORDER, signed=cls.IS_SIGNED
             )
         except TypeError:
             raise DecodeTypeError()
-        except ValueError:
-            raise DecodeValueError()
-        except OverflowError:
-            raise DecodeOverflowError()
 
         return cls.LENGTH, __int
 
@@ -236,6 +265,11 @@ class VariableByteCodec(Codec):
 
     @classmethod
     def encode(cls, __data: int) -> bytearray:  # type: ignore[override]
+        try:
+            if not (0 <= __data <= 0xFFFFFF7F):
+                raise EncodeOverflowError()
+        except TypeError:
+            raise EncodeTypeError()
         arr: bytearray = bytearray()
         while True:
             encoded_byte: int = __data % 128
