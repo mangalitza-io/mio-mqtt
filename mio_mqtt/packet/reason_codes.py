@@ -1,8 +1,13 @@
 from collections.abc import Iterable, Iterator, Mapping
+from enum import Enum
 
 from mio_mqtt.types import All, Slots
 
 __all__: All = (
+    "ReasonCodeError",
+    "ReasonCodeTypeError",
+    "ReasonCodeValueError",
+    "ReasonCodeKeyError",
     "ReasonCode",
     "ReasonCodes",
     "SUCCESS",
@@ -53,6 +58,22 @@ __all__: All = (
 )
 
 
+class ReasonCodeError(Exception):
+    __slots__: Slots = tuple()
+
+
+class ReasonCodeTypeError(ReasonCodeError, TypeError):
+    __slots__: Slots = tuple()
+
+
+class ReasonCodeValueError(ReasonCodeError, ValueError):
+    __slots__: Slots = tuple()
+
+
+class ReasonCodeKeyError(ReasonCodeError, KeyError):
+    __slots__: Slots = tuple()
+
+
 class ReasonCode:
     __slots__: Slots = (
         "_code",
@@ -81,14 +102,33 @@ class ReasonCode:
 
 
 class ReasonCodes(Mapping[int, ReasonCode]):
+    __slots__: Slots = (
+        "_reason_codes",
+        "_reason_codes_by_code",
+    )
+
     def __init__(self, reason_codes: Iterable[ReasonCode]) -> None:
         self._reason_codes: tuple[ReasonCode, ...] = tuple(reason_codes)
-        self._reason_codes_by_code: Mapping[int, ReasonCode] = {
-            reason_code.code: reason_code for reason_code in self._reason_codes
-        }
+        try:
+            self._reason_codes_by_code: Mapping[int, ReasonCode] = {
+                reason_code.code: reason_code
+                for reason_code in self._reason_codes
+            }
+        except AttributeError:
+            raise ReasonCodeTypeError()
+
+        for reason_code in self._reason_codes:
+            if not isinstance(reason_code, ReasonCode):
+                raise ReasonCodeTypeError()
+
+        if len(self._reason_codes) != len(self._reason_codes_by_code):
+            raise ReasonCodeValueError()
 
     def __getitem__(self, key: int) -> ReasonCode:
-        return self._reason_codes_by_code[key]
+        try:
+            return self._reason_codes_by_code[key]
+        except KeyError:
+            raise ReasonCodeKeyError()
 
     def __len__(self) -> int:
         return len(self._reason_codes)
