@@ -99,17 +99,17 @@ jobs:
       - name: Linux Run Unit Tests
         if: runner.os == 'Linux'
         run: |
-          pytest ${TEST_UNIT_DIR} -n auto
+          poetry run python -m pytest ${TEST_UNIT_DIR} -n auto
 
       - name: macOS Run Unit Tests
         if: runner.os == 'macOS'
         run: |
-          pytest ${TEST_UNIT_DIR} -n auto
+          poetry run python -m pytest ${TEST_UNIT_DIR} -n auto
 
       - name: Windows Run Unit Tests
         if: runner.os == 'Windows'
         run: |
-          pytest $env:TEST_UNIT_DIR -n auto
+          poetry run python -m pytest $env:TEST_UNIT_DIR -n auto
         shell: pwsh
 
   run-integration-test:
@@ -141,17 +141,17 @@ jobs:
       - name: Linux Run Integration Tests
         if: runner.os == 'Linux'
         run: |
-          pytest ${TEST_INTEGRATION_DIR} -n auto
+          poetry run python -m pytest ${TEST_INTEGRATION_DIR} -n auto
 
       - name: macOS Run Integration Tests
         if: runner.os == 'macOS'
         run: |
-          pytest ${TEST_INTEGRATION_DIR} -n auto
+          poetry run python -m pytest ${TEST_INTEGRATION_DIR} -n auto
 
       - name: Windows Run Integration Tests
         if: runner.os == 'Windows'
         run: |
-          pytest $env:TEST_INTEGRATION_DIR -n auto
+          poetry run python -m pytest $env:TEST_INTEGRATION_DIR -n auto
         shell: pwsh
 
   run-e2e-test:
@@ -179,15 +179,15 @@ jobs:
       - name: Linux Run End to End Tests
         if: runner.os == 'Linux'
         run: |
-          pytest ${TEST_E2E_DIR} -n auto
+          poetry run python -m pytest ${TEST_E2E_DIR} -n auto
 
       - name: macOS Run End to End Tests
         if: runner.os == 'macOS'
         run: |
-          pytest ${TEST_E2E_DIR} -n auto
+          poetry run python -m pytest ${TEST_E2E_DIR} -n auto
 
       - name: Windows Run End to End Tests
         if: runner.os == 'Windows'
         run: |
-          pytest $env:TEST_E2E_DIR -n auto
+          poetry run python -m pytest $env:TEST_E2E_DIR -n auto
         shell: pwsh
