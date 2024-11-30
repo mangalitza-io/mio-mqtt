@@ -6,8 +6,48 @@ env:
   PROJECT_DIR: "mio_mqtt"
 
 jobs:
+  mypy-simple:
+    name: Run mypy
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: "x64"
+
+      - name: Install mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+          mypy --version
+
+      - name: Linux Mypy
+        if: runner.os == 'Linux'
+        run: |
+          mypy $PROJECT_DIR
+
+      - name: Windows Mypy
+        if: runner.os == 'Windows'
+        run: |
+          mypy $env:PROJECT_DIR
+        shell: pwsh
+
+      - name: macOS Mypy
+        if: runner.os == 'macOS'
+        run: |
+          mypy $PROJECT_DIR
+
   mypy-ubuntu:
     name: Run mypy on Ubuntu
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +74,7 @@ jobs:
 
   mypy-macos:
     name: Run mypy on Macos
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +101,7 @@ jobs:
 
   mypy-windows:
     name: Run mypy on Windows
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:

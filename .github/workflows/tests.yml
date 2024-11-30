@@ -96,9 +96,21 @@ jobs:
           pip install poetry
           poetry install --no-root --with dev
 
-      - name: Run Unit Tests
+      - name: Linux Run Unit Tests
+        if: runner.os == 'Linux'
         run: |
-          pytest "${TEST_UNIT_DIR}" -n auto
+          pytest ${TEST_UNIT_DIR} -n auto
+
+      - name: macOS Run Unit Tests
+        if: runner.os == 'macOS'
+        run: |
+          pytest ${TEST_UNIT_DIR} -n auto
+
+      - name: Windows Run Unit Tests
+        if: runner.os == 'Windows'
+        run: |
+          pytest $env:TEST_UNIT_DIR -n auto
+        shell: pwsh
 
   run-integration-test:
     name: Run Integration tests on multiple Python versions and platforms
@@ -126,9 +138,21 @@ jobs:
           pip install poetry
           poetry install --no-root --with dev
 
-      - name: Run Integration Tests
+      - name: Linux Run Integration Tests
+        if: runner.os == 'Linux'
         run: |
-          pytest "${TEST_INTEGRATION_DIR}" -n auto
+          pytest ${TEST_INTEGRATION_DIR} -n auto
+
+      - name: macOS Run Integration Tests
+        if: runner.os == 'macOS'
+        run: |
+          pytest ${TEST_INTEGRATION_DIR} -n auto
+
+      - name: Windows Run Integration Tests
+        if: runner.os == 'Windows'
+        run: |
+          pytest $env:TEST_INTEGRATION_DIR -n auto
+        shell: pwsh
 
   run-e2e-test:
     name: Run Integration tests on multiple Python versions and platforms
@@ -152,6 +176,18 @@ jobs:
           pip install poetry
           poetry install --no-root --with dev
 
-      - name: Run End to End Tests
+      - name: Linux Run End to End Tests
+        if: runner.os == 'Linux'
         run: |
-          pytest "${TEST_E2E_DIR}" -n auto
+          pytest ${TEST_E2E_DIR} -n auto
+
+      - name: macOS Run End to End Tests
+        if: runner.os == 'macOS'
+        run: |
+          pytest ${TEST_E2E_DIR} -n auto
+
+      - name: Windows Run End to End Tests
+        if: runner.os == 'Windows'
+        run: |
+          pytest $env:TEST_E2E_DIR -n auto
+        shell: pwsh
