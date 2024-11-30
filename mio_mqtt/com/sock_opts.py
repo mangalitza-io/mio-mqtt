@@ -55,21 +55,7 @@ class _SocketOpts:
             from socket import SO_KEEPALIVE, SOL_SOCKET
         except ImportError:
             raise ImportError()
-        sock_opts: SockOpts = ((SOL_SOCKET, SO_KEEPALIVE, 1),)
-        try:
-            from socket import (
-                IPPROTO_TCP,
-                TCP_KEEPCNT,
-                TCP_KEEPIDLE,
-                TCP_KEEPINTVL,
-            )
-        except ImportError:
-            return sock_opts
-        return sock_opts + (
-            (IPPROTO_TCP, TCP_KEEPIDLE, 60),
-            (IPPROTO_TCP, TCP_KEEPINTVL, 10),
-            (IPPROTO_TCP, TCP_KEEPCNT, 5),
-        )
+        return ((SOL_SOCKET, SO_KEEPALIVE, 1),)
 
     @staticmethod
     def _tcp_quickack() -> SockOpts:
