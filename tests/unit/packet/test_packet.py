@@ -409,7 +409,7 @@ class TestPublishPacket:
         assert self.packet._dup is self.dup
         assert self.packet._qos == self.qos_0
         assert self.packet._retain is self.retain
-        assert self.packet._topic is ""
+        assert self.packet._topic == ""
         assert self.packet._packet_id is None
         assert self.packet._properties == {}
         assert self.packet._payload == b""
