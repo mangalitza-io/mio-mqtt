@@ -1,3 +1,4 @@
+import uuid
 from typing import cast
 
 import pytest
@@ -56,15 +57,26 @@ def to_byte_reconstruct(packet: Packet) -> Packet:
 
 
 class TestPacket:
+    fixed_byte: int
+    variable_header: bytes | bytearray
+    payload: bytes | bytearray
+    packet_body: bytes | bytearray
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.fixed_byte = 0x00
+        cls.variable_header = b"header"
+        cls.payload = b"payload"
+
     def test_packet_is_abstract(self) -> None:
         with pytest.raises(TypeError):
             Packet()  # type: ignore[abstract]
 
     def test_from_bytes_is_abstract(self) -> None:
-        fixed_byte: int = 0x00
-        packet_body: bytearray = bytearray()
         with pytest.raises(NotImplementedError):
-            Packet.from_bytes(fixed_byte=fixed_byte, packet_body=packet_body)
+            Packet.from_bytes(
+                fixed_byte=self.fixed_byte, packet_body=bytearray()
+            )
 
     def test_to_bytes_is_abstract(self, mocker: MockFixture) -> None:
         with pytest.raises(NotImplementedError):
@@ -76,373 +88,358 @@ class TestPacket:
         assert result == expected
 
     def test_remaining_length_variable_header_only(self) -> None:
-        variable_header = b"header"
-        result = Packet._remaining_length(variable_header=variable_header)
-        expected = VariableByteCodec.encode(len(variable_header))
+        result = Packet._remaining_length(variable_header=self.variable_header)
+        expected = VariableByteCodec.encode(len(self.variable_header))
         assert result == expected
 
     def test_remaining_length_payload_only(self) -> None:
-        payload = b"payload"
-        result = Packet._remaining_length(payload=payload)
-        expected = VariableByteCodec.encode(len(payload))
+        result = Packet._remaining_length(payload=self.payload)
+        expected = VariableByteCodec.encode(len(self.payload))
         assert result == expected
 
     def test_remaining_length_combined(self) -> None:
-        variable_header = b"header"
-        payload = b"payload"
         result = Packet._remaining_length(
-            variable_header=variable_header, payload=payload
+            variable_header=self.variable_header, payload=self.payload
         )
         expected = VariableByteCodec.encode(
-            len(variable_header) + len(payload)
+            len(self.variable_header) + len(self.payload)
         )
         assert result == expected
 
     def test_fixed_header_empty(self) -> None:
-        first_byte = 0x10
-        result = Packet._fixed_header(first_byte=first_byte)
-        expected = bytearray([first_byte])
+        result = Packet._fixed_header(first_byte=self.fixed_byte)
+        expected = bytearray([self.fixed_byte])
         expected += VariableByteCodec.encode(0)
         assert result == expected
 
     def test_to_packet_empty(self) -> None:
-        first_byte = 0x10
-        result = Packet._to_packet(first_byte)
-        expected_fixed_header = Packet._fixed_header(first_byte)
+        result = Packet._to_packet(self.fixed_byte)
+        expected_fixed_header = Packet._fixed_header(self.fixed_byte)
         assert result == expected_fixed_header
 
     def test_fixed_header_basic(self) -> None:
-        first_byte = 0x10
-        variable_header = b"header"
-        payload = b"payload"
-        result = Packet._fixed_header(first_byte, variable_header, payload)
+        result = Packet._fixed_header(
+            self.fixed_byte, self.variable_header, self.payload
+        )
         expected_length = VariableByteCodec.encode(
-            len(variable_header) + len(payload)
+            len(self.variable_header) + len(self.payload)
         )
 
-        assert result[0] == first_byte
+        assert result[0] == self.fixed_byte
         assert result[1:] == expected_length
 
     def test_to_packet_with_variable_header(self) -> None:
-        first_byte = 0x10
-        variable_header = b"header"
-        result = Packet._to_packet(first_byte, variable_header=variable_header)
-        expected_fixed_header = Packet._fixed_header(
-            first_byte, variable_header=variable_header
+        result = Packet._to_packet(
+            self.fixed_byte, variable_header=self.variable_header
         )
-        expected_packet = expected_fixed_header + variable_header
+        expected_fixed_header = Packet._fixed_header(
+            self.fixed_byte, variable_header=self.variable_header
+        )
+        expected_packet = expected_fixed_header + self.variable_header
         assert result == expected_packet
 
     def test_to_packet_with_payload(self) -> None:
-        first_byte = 0x10
-        payload = b"payload"
-        result = Packet._to_packet(first_byte, payload=payload)
+        result = Packet._to_packet(self.fixed_byte, payload=self.payload)
         expected_fixed_header = Packet._fixed_header(
-            first_byte, payload=payload
+            self.fixed_byte, payload=self.payload
         )
-        expected_packet = expected_fixed_header + payload
+        expected_packet = expected_fixed_header + self.payload
         assert result == expected_packet
 
     def test_to_packet_with_variable_header_and_payload(self) -> None:
-        first_byte = 0x10
-        variable_header = b"header"
-        payload = b"payload"
         result = Packet._to_packet(
-            first_byte, variable_header=variable_header, payload=payload
+            self.fixed_byte,
+            variable_header=self.variable_header,
+            payload=self.payload,
         )
         expected_fixed_header = Packet._fixed_header(
-            first_byte, variable_header=variable_header, payload=payload
+            self.fixed_byte,
+            variable_header=self.variable_header,
+            payload=self.payload,
         )
-        expected_packet = expected_fixed_header + variable_header + payload
+        expected_packet = (
+            expected_fixed_header + self.variable_header + self.payload
+        )
         assert result == expected_packet
 
 
 class TestConnectPacket:
-    connect_flags_i: int
+    client_id: str
+    clean_start: bool
+    username: str
+    password: str
+    keep_alive: int
+    properties: DictStrObject
+    will_message: WillMessage
 
-    def setup_method(self) -> None:
-        self.client_id: str = "test"
-        self.default_packet: ConnectPacket = ConnectPacket(
-            client_id=self.client_id
-        )
-        self.flags_i: int = 9
+    flags_i: int
 
-    def test_connect_packet_is_subclass_of_packet(self) -> None:
-        assert issubclass(ConnectPacket, Packet)
+    packet: ConnectPacket
+    packet_with_properties: ConnectPacket
+    packet_custom: ConnectPacket
 
-    def test_connect_packet_init_default(self) -> None:
-        assert self.default_packet._client_id == self.client_id
-        assert self.default_packet._clean_start is True
-        assert self.default_packet._username is None
-        assert self.default_packet._password is None
-        assert self.default_packet._keep_alive == 60
-        assert self.default_packet._properties == {}
-        assert self.default_packet._will_message is None
-
-    def test_connect_packet_init_with_property(self) -> None:
-        properties: DictStrObject = {}
-        connect_packet: ConnectPacket = ConnectPacket(
-            client_id=self.client_id, properties=properties
-        )
-        assert connect_packet._client_id == self.client_id
-        assert connect_packet._clean_start is True
-        assert connect_packet._username is None
-        assert connect_packet._password is None
-        assert connect_packet._keep_alive == 60
-        assert connect_packet._properties == {}
-        assert connect_packet._will_message is None
-
-    def test_connect_packet_custom_init(self) -> None:
-        client_id: str = "test_client"
-        username: str = "user"
-        password: str = "pass"
-        properties: DictStrObject = {"test_property": "test_value"}
-        will_message: WillMessage = WillMessage(
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.client_id = "test_client"
+        cls.clean_start = False
+        cls.username = "user"
+        cls.password = "pass"
+        cls.keep_alive = 30
+        cls.properties = {USER_PROPERTY.name: ("apple", "one")}
+        cls.will_message = WillMessage(
             topic="topic",
             message="message",
             qos=1,
             retain=True,
             properties={},
         )
-        connect_packet: ConnectPacket = ConnectPacket(
-            client_id=client_id,
-            clean_start=False,
-            username=username,
-            password=password,
-            keep_alive=30,
-            properties=properties,
-            will_message=will_message,
+        cls.flags_i = len(ConnectPacket.B_PROTOCOL_NAME) + len(
+            OneByteCodec.encode(ConnectPacket.MQTT_50)
         )
 
-        assert connect_packet._client_id == client_id
-        assert connect_packet._clean_start is False
-        assert connect_packet._username == username
-        assert connect_packet._password == password
-        assert connect_packet._keep_alive == 30
-        assert connect_packet._properties == properties
-        assert connect_packet._will_message == will_message
+        cls.packet = ConnectPacket(client_id=cls.client_id)
+        cls.packet_with_properties = ConnectPacket(
+            client_id=cls.client_id,
+            properties=cls.properties,
+        )
+        cls.packet_custom = ConnectPacket(
+            client_id=cls.client_id,
+            clean_start=cls.clean_start,
+            username=cls.username,
+            password=cls.password,
+            keep_alive=cls.keep_alive,
+            properties=cls.properties,
+            will_message=cls.will_message,
+        )
+
+    def test_connect_packet_is_subclass_of_packet(self) -> None:
+        assert issubclass(ConnectPacket, Packet)
+
+    def test_connect_packet_init_default(self) -> None:
+        assert self.packet._client_id == self.client_id
+        assert self.packet._clean_start is True
+        assert self.packet._username is None
+        assert self.packet._password is None
+        assert self.packet._keep_alive == 60
+        assert self.packet._properties == {}
+        assert self.packet._will_message is None
+
+    def test_connect_packet_init_with_property(self) -> None:
+        assert self.packet_with_properties._client_id == self.client_id
+        assert self.packet_with_properties._clean_start is True
+        assert self.packet_with_properties._username is None
+        assert self.packet_with_properties._password is None
+        assert self.packet_with_properties._keep_alive == 60
+        assert self.packet_with_properties._properties == self.properties
+        assert self.packet_with_properties._will_message is None
+
+    def test_connect_packet_custom_init(self) -> None:
+        assert self.packet_custom._client_id == self.client_id
+        assert self.packet_custom._clean_start is self.clean_start
+        assert self.packet_custom._username == self.username
+        assert self.packet_custom._password == self.password
+        assert self.packet_custom._keep_alive == self.keep_alive
+        assert self.packet_custom._properties == self.properties
+        assert self.packet_custom._will_message == self.will_message
 
     def test_connect_packet_to_bytes_basic(self) -> None:
-        client_id = "test_client"
-        connect_packet = ConnectPacket(client_id=client_id)
-
-        result = connect_packet.to_bytes()
-        assert isinstance(result, bytearray)
-
-    def test_connect_packet_to_bytes_with_clean_start(self) -> None:
-        client_id = "test_client"
-        connect_packet = ConnectPacket(client_id=client_id, clean_start=True)
-
-        result = connect_packet.to_bytes()
-        assert result[self.flags_i] & 0b00000010 != 0
-
-    def test_connect_packet_to_bytes_with_username_password(self) -> None:
-        client_id = "test_client"
-        username = "user"
-        password = "pass"
-        connect_packet = ConnectPacket(
-            client_id=client_id, username=username, password=password
-        )
-
-        result = connect_packet.to_bytes()
-        assert result[self.flags_i] & 0b10000000 != 0
-        assert result[self.flags_i] & 0b01000000 != 0
-
-    def test_connect_packet_to_bytes_with_will_message(self) -> None:
-        client_id = "test_client"
-        will_message = WillMessage(
-            topic="test_topic",
-            message="test_message",
-            qos=1,
-            retain=True,
-            properties={CONTENT_TYPE.name: "test_value"},
-        )
-        connect_packet = ConnectPacket(
-            client_id=client_id, will_message=will_message
-        )
-
-        result = connect_packet.to_bytes()
-        assert result[self.flags_i] & 0b00000100 != 0
-        assert result[self.flags_i] & 0b00100000 != 0
-
-    def test_connect_packet_from_bytes_basic(self) -> None:
-        packet_bytes: bytearray = self.default_packet.to_bytes()
+        packet_bytes: bytearray = self.packet.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
-        reconstructed: ConnectPacket = ConnectPacket.from_bytes(
-            first_byte, packet_body
+        assert isinstance(packet_bytes, bytearray)
+        assert first_byte == (self.packet.TYPE << 4)
+
+    def test_connect_packet_to_bytes_with_clean_start(self) -> None:
+        packet_bytes: bytearray = self.packet.to_bytes()
+        first_byte, packet_body = to_decode(packet_bytes)
+
+        assert packet_body[self.flags_i] & 0b00000010 != 0
+
+    def test_connect_packet_to_bytes_with_username_password(self) -> None:
+        packet_bytes: bytearray = self.packet_custom.to_bytes()
+        first_byte, packet_body = to_decode(packet_bytes)
+
+        assert packet_body[self.flags_i] & 0b10000000 != 0
+        assert packet_body[self.flags_i] & 0b01000000 != 0
+
+    def test_connect_packet_to_bytes_with_will_message(self) -> None:
+        packet_bytes: bytearray = self.packet_custom.to_bytes()
+        first_byte, packet_body = to_decode(packet_bytes)
+
+        assert packet_body[self.flags_i] & 0b00000100 != 0
+        assert packet_body[self.flags_i] & 0b00100000 != 0
+
+    def test_connect_packet_from_bytes_basic(self) -> None:
+        reconstructed: ConnectPacket = cast(
+            ConnectPacket, to_byte_reconstruct(self.packet)
         )
 
         assert reconstructed._client_id == self.client_id
 
     def test_connect_packet_from_bytes_with_username_password(self) -> None:
-        client_id = "test_client"
-        username = "user"
-        password = "pass"
-        connect_packet = ConnectPacket(
-            client_id=client_id, username=username, password=password
+        reconstructed: ConnectPacket = cast(
+            ConnectPacket, to_byte_reconstruct(self.packet_custom)
         )
-        packet_bytes = connect_packet.to_bytes()
-        first_byte, packet_body = to_decode(packet_bytes)
 
-        reconstructed: ConnectPacket = ConnectPacket.from_bytes(
-            first_byte, packet_body
-        )
-        assert reconstructed._username == username
-        assert reconstructed._password == password
+        assert reconstructed._username == self.username
+        assert reconstructed._password == self.password
 
     def test_connect_packet_from_bytes_with_will_message(self) -> None:
-        client_id = "test_client"
-        will_message = WillMessage(
-            topic="test_topic",
-            message="test_message",
-            qos=1,
-            retain=True,
-            properties={CONTENT_TYPE.name: "test_value"},
-        )
-        connect_packet = ConnectPacket(
-            client_id=client_id, will_message=will_message
-        )
-        packet_bytes = connect_packet.to_bytes()
-        first_byte, packet_body = to_decode(packet_bytes)
-
-        reconstructed: ConnectPacket = ConnectPacket.from_bytes(
-            first_byte, packet_body
+        reconstructed: ConnectPacket = cast(
+            ConnectPacket, to_byte_reconstruct(self.packet_custom)
         )
         reconstructed_will_message: WillMessage = cast(
             WillMessage, reconstructed._will_message
         )
-        assert reconstructed_will_message.topic == will_message.topic
-        assert reconstructed_will_message.message == will_message.message
-        assert reconstructed_will_message.qos == will_message.qos
-        assert reconstructed_will_message.retain == will_message.retain
-        assert reconstructed_will_message.properties == will_message.properties
+        assert reconstructed_will_message.topic == self.will_message.topic
+        assert reconstructed_will_message.message == self.will_message.message
+        assert reconstructed_will_message.qos == self.will_message.qos
+        assert reconstructed_will_message.retain == self.will_message.retain
+        assert (
+            reconstructed_will_message.properties
+            == self.will_message.properties
+        )
 
 
 class TestConnAckPacket:
-    def setup_method(self) -> None:
-        self.session_present: bool = False
-        self.reason_code: ReasonCode = SUCCESS
-        self.properties: DictStrObject = {MAX_QOS.name: 2}
-        self.default_packet: ConnAckPacket = ConnAckPacket(
-            session_present=self.session_present,
-            reason_code=self.reason_code,
+    session_present: bool
+    reason_code: ReasonCode
+    properties: DictStrObject
+
+    packet: ConnAckPacket
+    packet_with_properties: ConnAckPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.session_present = False
+        cls.reason_code = SUCCESS
+        cls.properties = {MAX_QOS.name: 2}
+
+        cls.packet = ConnAckPacket(
+            session_present=cls.session_present,
+            reason_code=cls.reason_code,
+        )
+        cls.packet_with_properties = ConnAckPacket(
+            session_present=cls.session_present,
+            reason_code=cls.reason_code,
+            properties=cls.properties,
         )
 
     def test_conn_ack_packet_defaults(self) -> None:
-        assert self.default_packet._session_present is False
-        assert self.default_packet._reason_code == SUCCESS
-        assert self.default_packet._properties == {}
+        assert self.packet._session_present is self.session_present
+        assert self.packet._reason_code == self.reason_code
+        assert self.packet._properties == {}
 
     def test_conn_ack_packet_with_properties_init(self) -> None:
-        packet: ConnAckPacket = ConnAckPacket(
-            session_present=self.session_present,
-            reason_code=self.reason_code,
-            properties={},
+        assert (
+            self.packet_with_properties._session_present
+            is self.session_present
         )
-        assert packet._session_present is False
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == {}
+        assert self.packet_with_properties._reason_code == self.reason_code
+        assert self.packet_with_properties._properties == self.properties
 
     def test_conn_ack_packet_to_bytes_basic(self) -> None:
-        packet = ConnAckPacket(
-            session_present=True, reason_code=self.reason_code
-        )
-        packet_bytes = packet.to_bytes()
+        packet_bytes: bytearray = self.packet.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0] == 0b00000001
+        assert first_byte == (self.packet.TYPE << 4)
+        assert packet_body[0] == int(self.session_present)
         assert packet_body[1] == self.reason_code.code
 
     def test_conn_ack_packet_with_properties(self) -> None:
-        packet = ConnAckPacket(
-            session_present=False,
-            reason_code=self.reason_code,
-            properties=self.properties,
-        )
-
-        packet_bytes = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_with_properties.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0] == 0b00000000
+        assert first_byte == (self.packet.TYPE << 4)
+        assert packet_body[0] == int(self.session_present)
         assert packet_body[1] == self.reason_code.code
         assert len(packet_body) > 2
 
-    def test_conn_ack_packet_basic(self) -> None:
-        packet = ConnAckPacket(
-            session_present=True,
-            reason_code=self.reason_code,
-            properties=self.properties,
+    def test_conn_ack_packet_from_bytes_basic(self) -> None:
+        reconstructed: ConnAckPacket = cast(
+            ConnAckPacket, to_byte_reconstruct(self.packet)
         )
 
-        packet_bytes = packet.to_bytes()
-        first_byte, packet_body = to_decode(packet_bytes)
-        reconstructed = ConnAckPacket.from_bytes(first_byte, packet_body)
-        assert reconstructed._session_present == packet._session_present
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._session_present == self.packet._session_present
+        assert reconstructed._reason_code == self.packet._reason_code
+        assert reconstructed._properties == self.packet._properties
 
 
 class TestPublishPacket:
+    dup: bool
+    qos_0: int
+    qos_1: int
+    retain: bool
+    topic: str
+    packet_id: int
+    properties: DictStrObject
+    payload: bytes | bytearray
+
+    packet: PublishPacket
+    packet_custom: PublishPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.dup = False
+        cls.qos_0 = 0
+        cls.qos_1 = 1
+        cls.retain = False
+        cls.topic = "test/topic"
+        cls.packet_id = 123
+        cls.properties = {CONTENT_TYPE.name: "value"}
+        cls.payload = b"test_payload"
+
+        cls.packet = PublishPacket(
+            dup=cls.dup,
+            qos=cls.qos_0,
+            retain=cls.retain,
+        )
+        cls.packet_custom = PublishPacket(
+            dup=cls.dup,
+            qos=cls.qos_1,
+            retain=cls.retain,
+            topic=cls.topic,
+            packet_id=cls.packet_id,
+            properties=cls.properties,
+            payload=cls.payload,
+        )
+
     def test_publish_packet_defaults(self) -> None:
-        packet: PublishPacket = PublishPacket(dup=False, qos=0, retain=False)
-        assert packet._dup is False
-        assert packet._qos == 0
-        assert packet._retain is False
-        assert packet._topic is None
-        assert packet._packet_id is None
-        assert packet._properties == {}
-        assert packet._payload == b""
+        assert self.packet._dup is self.dup
+        assert self.packet._qos == self.qos_0
+        assert self.packet._retain is self.retain
+        assert self.packet._topic is ""
+        assert self.packet._packet_id is None
+        assert self.packet._properties == {}
+        assert self.packet._payload == b""
 
     def test_publish_packet_init_with_values(self) -> None:
-        properties: DictStrObject = {CONTENT_TYPE.name: "value"}
-        payload: bytes = b"test_payload"
-        packet: PublishPacket = PublishPacket(
-            dup=True,
-            qos=1,
-            retain=True,
-            topic="test/topic",
-            packet_id=123,
-            properties=properties,
-            payload=payload,
-        )
-        assert packet._dup is True
-        assert packet._qos == 1
-        assert packet._retain is True
-        assert packet._topic == "test/topic"
-        assert packet._packet_id == 123
-        assert packet._properties == properties
-        assert packet._payload == payload
+        assert self.packet_custom._dup is self.dup
+        assert self.packet_custom._qos == self.qos_1
+        assert self.packet_custom._retain is self.retain
+        assert self.packet_custom._topic == self.topic
+        assert self.packet_custom._packet_id == self.packet_id
+        assert self.packet_custom._properties == self.properties
+        assert self.packet_custom._payload == self.payload
 
     def test_publish_packet_invalid_qos(self) -> None:
         with pytest.raises(ValueError):
             PublishPacket(dup=False, qos=100, retain=False)
 
     def test_publish_packet_basic(self) -> None:
-        packet = PublishPacket(
-            dup=False, qos=0, retain=False, topic="test/topic", payload=b"data"
-        )
-        result = packet.to_bytes()
-        assert isinstance(result, bytearray)
-        assert result[0] == (packet.TYPE << 4)
+        packet_bytes: bytearray = self.packet.to_bytes()
+        first_byte, packet_body = to_decode(packet_bytes)
+
+        assert isinstance(packet_bytes, bytearray)
+        assert first_byte == (self.packet.TYPE << 4)
 
     def test_publish_packet_with_qos(self) -> None:
-        packet = PublishPacket(
-            dup=True,
-            qos=1,
-            retain=True,
-            topic="test/topic",
-            packet_id=123,
-            payload=b"data",
-        )
-        packet_bytes = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_custom.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
+
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte & 0b00001000 != 0
         assert first_byte & 0b00000110 != 0
 
     def test_publish_packet_without_packet_id(self) -> None:
@@ -453,121 +450,113 @@ class TestPublishPacket:
             packet.to_bytes()
 
     def test_publish_packet_from_bytes_basic(self) -> None:
-        packet = PublishPacket(
-            dup=False, qos=0, retain=False, topic="test/topic", payload=b"data"
+        reconstructed: PublishPacket = cast(
+            PublishPacket, to_byte_reconstruct(self.packet)
         )
 
-        packet_bytes = packet.to_bytes()
-        first_byte, packet_body = to_decode(packet_bytes)
-        reconstructed = PublishPacket.from_bytes(first_byte, packet_body)
-
-        assert reconstructed._dup == packet._dup
-        assert reconstructed._qos == packet._qos
-        assert reconstructed._retain == packet._retain
-        assert reconstructed._topic == packet._topic
-        assert reconstructed._payload == packet._payload
+        assert reconstructed._dup == self.packet._dup
+        assert reconstructed._qos == self.packet._qos
+        assert reconstructed._retain == self.packet._retain
+        assert reconstructed._topic == self.packet._topic
+        assert reconstructed._payload == self.packet._payload
 
     def test_publish_packet_from_bytes_with_qos(self) -> None:
-        packet: PublishPacket = PublishPacket(
-            dup=True,
-            qos=2,
-            retain=True,
-            topic="test/topic",
-            packet_id=321,
-            payload=b"test",
+        reconstructed: PublishPacket = cast(
+            PublishPacket, to_byte_reconstruct(self.packet_custom)
         )
-        packet_bytes = packet.to_bytes()
-        first_byte, packet_body = to_decode(packet_bytes)
-        reconstructed = PublishPacket.from_bytes(first_byte, packet_body)
-        assert reconstructed._dup == packet._dup
-        assert reconstructed._qos == packet._qos
-        assert reconstructed._retain == packet._retain
-        assert reconstructed._topic == packet._topic
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._payload == packet._payload
+
+        assert reconstructed._dup == self.packet_custom._dup
+        assert reconstructed._qos == self.packet_custom._qos
+        assert reconstructed._retain == self.packet_custom._retain
+        assert reconstructed._topic == self.packet_custom._topic
+        assert reconstructed._packet_id == self.packet_custom._packet_id
+        assert reconstructed._payload == self.packet_custom._payload
 
     def test_publish_packet_from_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {CONTENT_TYPE.name: "value"}
-        packet: PublishPacket = PublishPacket(
-            dup=False,
-            qos=1,
-            retain=True,
-            topic="test/topic",
-            packet_id=45,
-            properties=properties,
+        reconstructed: PublishPacket = cast(
+            PublishPacket, to_byte_reconstruct(self.packet_custom)
         )
-        packet_bytes = packet.to_bytes()
-        first_byte, packet_body = to_decode(packet_bytes)
-        reconstructed = PublishPacket.from_bytes(first_byte, packet_body)
-        assert reconstructed._dup == packet._dup
-        assert reconstructed._qos == packet._qos
-        assert reconstructed._retain == packet._retain
-        assert reconstructed._topic == packet._topic
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._properties == packet._properties
+
+        assert reconstructed._dup == self.packet_custom._dup
+        assert reconstructed._qos == self.packet_custom._qos
+        assert reconstructed._retain == self.packet_custom._retain
+        assert reconstructed._topic == self.packet_custom._topic
+        assert reconstructed._packet_id == self.packet_custom._packet_id
+        assert reconstructed._properties == self.packet_custom._properties
 
 
 class TestPubAckPacket:
+    packet_id: int
+    reason_code: ReasonCode
+    properties: DictStrObject
+
+    packet: PubAckPacket
+    packet_with_properties: PubAckPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.packet_id = 123
+        cls.reason_code = SUCCESS
+        cls.properties = {REASON_STRING.name: "value"}
+
+        cls.packet = PubAckPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+        )
+        cls.packet_with_properties = PubAckPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+            properties=cls.properties,
+        )
+
+
     def test_pub_ack_packet_init_defaults(self) -> None:
-        packet: PubAckPacket = PubAckPacket(packet_id=1, reason_code=SUCCESS)
-        assert packet._packet_id == 1
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == {}
+        assert self.packet._packet_id == self.packet_id
+        assert self.packet._reason_code == self.reason_code
+        assert self.packet._properties == {}
 
     def test_pub_ack_packet_init_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubAckPacket = PubAckPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        assert packet._packet_id == 123
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == properties
+        assert self.packet_with_properties._packet_id == self.packet_id
+        assert self.packet_with_properties._reason_code == self.reason_code
+        assert self.packet_with_properties._properties == self.properties
+
 
     def test_pub_ack_packet_to_bytes_basic(self) -> None:
-        packet: PubAckPacket = PubAckPacket(packet_id=321, reason_code=SUCCESS)
-        packet_bytes = packet.to_bytes()
+        packet_bytes: bytearray = self.packet.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0:2] == TwoByteCodec.encode(321)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == (self.packet.TYPE << 4)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
 
     def test_pub_ack_packet_to_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubAckPacket = PubAckPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        packet_bytes = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_with_properties.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0:2] == TwoByteCodec.encode(123)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == (self.packet_with_properties.TYPE << 4)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
         assert len(packet_body) > 3
 
     def test_pub_ack_packet_from_bytes_basic(self) -> None:
-        packet: PubAckPacket = PubAckPacket(packet_id=123, reason_code=SUCCESS)
         reconstructed: PubAckPacket = cast(
-            PubAckPacket, to_byte_reconstruct(packet)
+            PubAckPacket, to_byte_reconstruct(self.packet)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet._packet_id
+        assert reconstructed._reason_code == self.packet._reason_code
+        assert reconstructed._properties == self.packet._properties
 
     def test_pub_ack_packet_from_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubAckPacket = PubAckPacket(
-            packet_id=45, reason_code=SUCCESS, properties=properties
-        )
         reconstructed: PubAckPacket = cast(
-            PubAckPacket, to_byte_reconstruct(packet)
+            PubAckPacket, to_byte_reconstruct(self.packet_with_properties)
         )
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+
+        assert reconstructed._packet_id == self.packet_with_properties._packet_id
+        assert reconstructed._reason_code == self.packet_with_properties._reason_code
+        assert reconstructed._properties == self.packet_with_properties._properties
 
     def test_pub_ack_packet_invalid_reason_code(self) -> None:
         invalid_reason_code = 255
@@ -581,67 +570,75 @@ class TestPubAckPacket:
 
 
 class TestPubRecPacket:
+    packet_id: int
+    reason_code: ReasonCode
+    properties: DictStrObject
+
+    packet: PubRecPacket
+    packet_with_properties: PubRecPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.packet_id = 123
+        cls.reason_code = SUCCESS
+        cls.properties = {REASON_STRING.name: "value"}
+
+        cls.packet = PubRecPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+        )
+        cls.packet_with_properties = PubRecPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+            properties=cls.properties,
+        )
+
     def test_pub_rec_packet_init_defaults(self) -> None:
-        packet: PubRecPacket = PubRecPacket(packet_id=1, reason_code=SUCCESS)
-        assert packet._packet_id == 1
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == {}
+        assert self.packet._packet_id == self.packet_id
+        assert self.packet._reason_code == self.reason_code
+        assert self.packet._properties == {}
 
     def test_pub_rec_packet_init_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubRecPacket = PubRecPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        assert packet._packet_id == 123
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == properties
+        assert self.packet_with_properties._packet_id == self.packet_id
+        assert self.packet_with_properties._reason_code == self.reason_code
+        assert self.packet_with_properties._properties == self.properties
 
     def test_pub_rec_packet_to_bytes_basic(self) -> None:
-        packet: PubRecPacket = PubRecPacket(packet_id=321, reason_code=SUCCESS)
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0:2] == TwoByteCodec.encode(321)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == (self.packet.TYPE << 4)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
 
     def test_pub_rec_packet_to_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubRecPacket = PubRecPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_with_properties.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0:2] == TwoByteCodec.encode(123)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == (self.packet_with_properties.TYPE << 4)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
         assert len(packet_body) > 3
 
     def test_pub_rec_packet_from_bytes_basic(self) -> None:
-        packet: PubRecPacket = PubRecPacket(packet_id=123, reason_code=SUCCESS)
         reconstructed: PubRecPacket = cast(
-            PubRecPacket, to_byte_reconstruct(packet)
+            PubRecPacket, to_byte_reconstruct(self.packet)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet._packet_id
+        assert reconstructed._reason_code == self.packet._reason_code
+        assert reconstructed._properties == self.packet._properties
 
     def test_pub_rec_packet_from_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubRecPacket = PubRecPacket(
-            packet_id=45, reason_code=SUCCESS, properties=properties
-        )
         reconstructed: PubRecPacket = cast(
-            PubRecPacket, to_byte_reconstruct(packet)
+            PubRecPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet_with_properties._packet_id
+        assert reconstructed._reason_code == self.packet_with_properties._reason_code
+        assert reconstructed._properties == self.packet_with_properties._properties
 
     def test_pub_rec_packet_invalid_reason_code(self) -> None:
         invalid_reason_code: int = 255
@@ -655,67 +652,75 @@ class TestPubRecPacket:
 
 
 class TestPubRelPacket:
+    packet_id: int
+    reason_code: ReasonCode
+    properties: DictStrObject
+
+    packet: PubRelPacket
+    packet_with_properties: PubRelPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.packet_id = 123
+        cls.reason_code = SUCCESS
+        cls.properties = {REASON_STRING.name: "value"}
+
+        cls.packet = PubRelPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+        )
+        cls.packet_with_properties = PubRelPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+            properties=cls.properties,
+        )
+
     def test_pub_rel_packet_init_defaults(self) -> None:
-        packet: PubRelPacket = PubRelPacket(packet_id=1, reason_code=SUCCESS)
-        assert packet._packet_id == 1
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == {}
+        assert self.packet._packet_id == self.packet_id
+        assert self.packet._reason_code == self.reason_code
+        assert self.packet._properties == {}
 
     def test_pub_rel_packet_init_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubRelPacket = PubRelPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        assert packet._packet_id == 123
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == properties
+        assert self.packet_with_properties._packet_id == self.packet_id
+        assert self.packet_with_properties._reason_code == self.reason_code
+        assert self.packet_with_properties._properties == self.properties
 
     def test_pub_rel_packet_to_bytes_basic(self) -> None:
-        packet: PubRelPacket = PubRelPacket(packet_id=321, reason_code=SUCCESS)
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == ((packet.TYPE << 4) | 0b0010)
-        assert packet_body[0:2] == TwoByteCodec.encode(321)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == ((self.packet.TYPE << 4) | 0b0010)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
 
     def test_pub_rel_packet_to_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubRelPacket = PubRelPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_with_properties.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == ((packet.TYPE << 4) | 0b0010)
-        assert packet_body[0:2] == TwoByteCodec.encode(123)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == ((self.packet_with_properties.TYPE << 4) | 0b0010)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
         assert len(packet_body) > 3
 
     def test_pub_rel_packet_from_bytes_basic(self) -> None:
-        packet: PubRelPacket = PubRelPacket(packet_id=123, reason_code=SUCCESS)
         reconstructed: PubRelPacket = cast(
-            PubRelPacket, to_byte_reconstruct(packet)
+            PubRelPacket, to_byte_reconstruct(self.packet)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet._packet_id
+        assert reconstructed._reason_code == self.packet._reason_code
+        assert reconstructed._properties == self.packet._properties
 
     def test_pub_rel_packet_from_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubRelPacket = PubRelPacket(
-            packet_id=45, reason_code=SUCCESS, properties=properties
-        )
         reconstructed: PubRelPacket = cast(
-            PubRelPacket, to_byte_reconstruct(packet)
+            PubRelPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet_with_properties._packet_id
+        assert reconstructed._reason_code == self.packet_with_properties._reason_code
+        assert reconstructed._properties == self.packet_with_properties._properties
 
     def test_pub_rel_packet_invalid_reason_code(self) -> None:
         invalid_reason_code: int = 255
@@ -729,71 +734,77 @@ class TestPubRelPacket:
 
 
 class TestPubCompPacket:
+    packet_id: int
+    reason_code: ReasonCode
+    properties: DictStrObject
+
+    packet: PubCompPacket
+    packet_with_properties: PubCompPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.packet_id = 123
+        cls.reason_code = SUCCESS
+        cls.properties = {REASON_STRING.name: "value"}
+
+        cls.packet = PubCompPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+        )
+        cls.packet_with_properties = PubCompPacket(
+            packet_id=cls.packet_id,
+            reason_code=cls.reason_code,
+            properties=cls.properties,
+        )
+
     def test_pub_comp_packet_init_defaults(self) -> None:
-        packet: PubCompPacket = PubCompPacket(packet_id=1, reason_code=SUCCESS)
-        assert packet._packet_id == 1
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == {}
+        assert self.packet._packet_id == self.packet_id
+        assert self.packet._reason_code == self.reason_code
+        assert self.packet._properties == {}
 
     def test_pub_comp_packet_init_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubCompPacket = PubCompPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        assert packet._packet_id == 123
-        assert packet._reason_code == SUCCESS
-        assert packet._properties == properties
+        assert self.packet_with_properties._packet_id == self.packet_id
+        assert self.packet_with_properties._reason_code == self.reason_code
+        assert self.packet_with_properties._properties == self.properties
 
     def test_pub_comp_packet_to_bytes_basic(self) -> None:
-        packet: PubCompPacket = PubCompPacket(
-            packet_id=321, reason_code=SUCCESS
-        )
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0:2] == TwoByteCodec.encode(321)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == (self.packet.TYPE << 4)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
 
     def test_pub_comp_packet_to_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubCompPacket = PubCompPacket(
-            packet_id=123, reason_code=SUCCESS, properties=properties
-        )
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_with_properties.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
 
         assert isinstance(packet_bytes, bytearray)
-        assert first_byte == (packet.TYPE << 4)
-        assert packet_body[0:2] == TwoByteCodec.encode(123)
-        assert packet_body[2] == SUCCESS.code
+        assert first_byte == (self.packet_with_properties.TYPE << 4)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
+        assert packet_body[2] == self.reason_code.code
         assert len(packet_body) > 3
 
     def test_pub_comp_packet_from_bytes_basic(self) -> None:
-        packet: PubCompPacket = PubCompPacket(
-            packet_id=123, reason_code=SUCCESS
-        )
         reconstructed: PubCompPacket = cast(
-            PubCompPacket, to_byte_reconstruct(packet)
+            PubCompPacket, to_byte_reconstruct(self.packet)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet._packet_id
+        assert reconstructed._reason_code == self.packet._reason_code
+        assert reconstructed._properties == self.packet._properties
 
     def test_pub_comp_packet_from_bytes_with_properties(self) -> None:
-        properties: DictStrObject = {REASON_STRING.name: "value"}
-        packet: PubCompPacket = PubCompPacket(
-            packet_id=45, reason_code=SUCCESS, properties=properties
-        )
+
         reconstructed: PubCompPacket = cast(
-            PubCompPacket, to_byte_reconstruct(packet)
+            PubCompPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == packet._packet_id
-        assert reconstructed._reason_code == packet._reason_code
-        assert reconstructed._properties == packet._properties
+        assert reconstructed._packet_id == self.packet_with_properties._packet_id
+        assert reconstructed._reason_code == self.packet_with_properties._reason_code
+        assert reconstructed._properties == self.packet_with_properties._properties
+
 
     def test_pub_comp_packet_invalid_reason_code(self) -> None:
         invalid_reason_code: int = 255
@@ -807,32 +818,70 @@ class TestPubCompPacket:
 
 
 class TestSubscribePacket:
-    def setup_method(self) -> None:
-        self.subscription: Subscription = Subscription(
-            topic="test/topic",
+    packet_id: int
+    properties: DictStrObject
+    subscription_one: Subscription
+    subscription_two: Subscription
+
+    topics_one: list[Subscription]
+    topics_two: list[Subscription]
+
+    packet: SubscribePacket
+    packet_with_properties: SubscribePacket
+    packet_multiple_topics: SubscribePacket
+    packet_multiple_topics_properties: SubscribePacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.packet_id = 123
+        cls.properties = {REASON_STRING.name: "value"}
+        cls.subscription_one = Subscription(
+            topic="test/topic-1",
             qos=1,
             no_local=False,
             retain_as_published=False,
             retain_handling=0,
         )
-        self.properties: DictStrObject = {REASON_STRING.name: "value"}
-        self.packet: SubscribePacket = SubscribePacket(
-            packet_id=1, topics=[self.subscription]
+        cls.subscription_two = Subscription(
+            topic="test/topic-2",
+            qos=3,
+            no_local=False,
+            retain_as_published=True,
+            retain_handling=0,
         )
-        self.packet_with_properties: SubscribePacket = SubscribePacket(
-            packet_id=1, topics=[self.subscription], properties=self.properties
+        cls.topics_one = [cls.subscription_one]
+        cls.topics_two = [cls.subscription_one, cls.subscription_two]
+
+        cls.packet = SubscribePacket(
+            packet_id=cls.packet_id,
+            topics=cls.topics_one,
+        )
+        cls.packet_with_properties = SubscribePacket(
+            packet_id=cls.packet_id,
+            topics=cls.topics_one,
+            properties=cls.properties,
+        )
+        cls.packet_multiple_topics = SubscribePacket(
+            packet_id=cls.packet_id,
+            topics=cls.topics_two,
+        )
+        cls.packet_multiple_topics_properties = SubscribePacket(
+            packet_id=cls.packet_id,
+            topics=cls.topics_two,
+            properties=cls.properties,
         )
 
+
     def test_subscribe_packet_init_defaults(self) -> None:
-        assert self.packet._packet_id == 1
-        assert len(self.packet._topics) == 1
-        assert self.packet._topics[0]._topic == "test/topic"
-        assert self.packet._topics[0]._qos == 1
+        assert self.packet._packet_id == self.packet_id
+        assert len(self.packet._topics) == len(self.topics_one)
+        assert self.packet._topics[0]._topic == self.subscription_one._topic
+        assert self.packet._topics[0]._qos == self.subscription_one._qos
         assert self.packet._properties == {}
 
     def test_subscribe_packet_init_with_properties(self) -> None:
-        assert self.packet_with_properties._packet_id == 1
-        assert len(self.packet_with_properties._topics) == 1
+        assert self.packet_with_properties._packet_id == self.packet_id
+        assert len(self.packet_with_properties._topics) == len(self.topics_one)
         assert self.packet_with_properties._properties == self.properties
 
     def test_subscribe_packet_to_bytes_basic(self) -> None:
@@ -841,32 +890,16 @@ class TestSubscribePacket:
 
         assert isinstance(packet_bytes, bytearray)
         assert first_byte == ((self.packet.TYPE << 4) | 0b0010)
-        assert packet_body[0:2] == TwoByteCodec.encode(1)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
         assert len(packet_body) > 3
 
     def test_subscribe_packet_to_bytes_with_multiple_topics(self) -> None:
-        subscriptions: list[Subscription] = [
-            Subscription(
-                topic="topic/1",
-                qos=1,
-                no_local=False,
-                retain_as_published=False,
-                retain_handling=0,
-            ),
-            Subscription(
-                topic="topic/2",
-                qos=2,
-                no_local=True,
-                retain_as_published=True,
-                retain_handling=1,
-            ),
-        ]
-        packet = SubscribePacket(packet_id=123, topics=subscriptions)
-        packet_bytes: bytearray = packet.to_bytes()
+        packet_bytes: bytearray = self.packet_multiple_topics.to_bytes()
         first_byte, packet_body = to_decode(packet_bytes)
+
         assert isinstance(packet_bytes, bytearray)
         assert first_byte == ((self.packet.TYPE << 4) | 0b0010)
-        assert packet_body[0:2] == TwoByteCodec.encode(123)
+        assert packet_body[0:2] == TwoByteCodec.encode(self.packet_id)
         assert len(packet_body) > 3
 
     def test_subscribe_packet_from_bytes_basic(self) -> None:
@@ -879,60 +912,56 @@ class TestSubscribePacket:
         assert reconstructed._topics[0]._qos == self.packet._topics[0]._qos
 
     def test_subscribe_packet_from_bytes_with_multiple_topics(self) -> None:
-        subscriptions: list[Subscription] = [
-            Subscription(
-                topic="topic/1",
-                qos=1,
-                no_local=False,
-                retain_as_published=False,
-                retain_handling=0,
-            ),
-            Subscription(
-                topic="topic/2",
-                qos=2,
-                no_local=True,
-                retain_as_published=True,
-                retain_handling=1,
-            ),
-        ]
-        packet = SubscribePacket(packet_id=123, topics=subscriptions)
         reconstructed: SubscribePacket = cast(
-            SubscribePacket, to_byte_reconstruct(packet)
+            SubscribePacket, to_byte_reconstruct(self.packet_multiple_topics)
         )
-        assert reconstructed._packet_id == packet._packet_id
-        assert len(reconstructed._topics) == len(packet._topics)
-        for i, topic in enumerate(packet._topics):
+
+        assert reconstructed._packet_id == self.packet_multiple_topics._packet_id
+        assert len(reconstructed._topics) == len(self.packet_multiple_topics._topics)
+        for i, topic in enumerate(self.packet_multiple_topics._topics):
             assert reconstructed._topics[i]._topic == topic._topic
             assert reconstructed._topics[i]._qos == topic._qos
 
 
 class TestSubAckPacket:
-    def setup_method(self) -> None:
-        self.packet_id: int = 1
-        self.rc: ReasonCode = GRANTED_QOS_0
-        self.reason_code: list[ReasonCode] = [self.rc]
-        self.reason_codes: list[ReasonCode] = [self.rc, self.rc]
-        self.properties: DictStrObject = {REASON_STRING.name: "value"}
-        self.packet: SubAckPacket = SubAckPacket(
-            packet_id=self.packet_id,
-            reason_codes=self.reason_code,
+    packet_id: int
+    rc: ReasonCode
+    reason_code: list[ReasonCode]
+    reason_codes: list[ReasonCode]
+    properties: DictStrObject
+
+    packet: SubAckPacket
+    packet_with_properties: SubAckPacket
+    packet_with_multiple_reason_codes: SubAckPacket
+    packet_with_multiple_reason_codes_properties: SubAckPacket
+
+    @classmethod
+    def setup_class(cls) -> None:
+        cls.packet_id = 123
+        cls.rc = GRANTED_QOS_0
+        cls.reason_code = [cls.rc]
+        cls.reason_codes = [cls.rc, cls.rc]
+        cls.properties = {REASON_STRING.name: "value"}
+
+        cls.packet = SubAckPacket(
+            packet_id=cls.packet_id,
+            reason_codes=cls.reason_code,
         )
-        self.packet_with_properties: SubAckPacket = SubAckPacket(
-            packet_id=self.packet_id,
-            reason_codes=self.reason_code,
-            properties=self.properties,
+        cls.packet_with_properties = SubAckPacket(
+            packet_id=cls.packet_id,
+            reason_codes=cls.reason_code,
+            properties=cls.properties,
         )
-        self.packet_with_multiple_reason_codes: SubAckPacket = SubAckPacket(
-            packet_id=self.packet_id,
-            reason_codes=self.reason_codes,
+        cls.packet_with_multiple_reason_codes = SubAckPacket(
+            packet_id=cls.packet_id,
+            reason_codes=cls.reason_codes,
         )
-        self.packet_with_multiple_reason_codes_properties: SubAckPacket = (
-            SubAckPacket(
-                packet_id=self.packet_id,
-                reason_codes=self.reason_codes,
-                properties=self.properties,
+        cls.packet_with_multiple_reason_codes_properties = SubAckPacket(
+                packet_id=cls.packet_id,
+                reason_codes=cls.reason_codes,
+                properties=cls.properties,
             )
-        )
+
 
     def test_sub_ack_packet_init_defaults(self) -> None:
         assert self.packet._packet_id == self.packet_id
@@ -1353,11 +1382,6 @@ class TestDisconnectPacket:
             reconstructed._properties
             == self.packet_with_properties._properties
         )
-
-
-"""
-def test_disconnect_packet_(self) -> None:
-"""
 
 
 class TestAuthPacket:

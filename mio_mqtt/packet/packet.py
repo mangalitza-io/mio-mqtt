@@ -435,6 +435,14 @@ class ConnAckPacket(Packet):
 
 
 class PublishPacket(Packet):
+    """
+    1542
+        To reduce the size of the PUBLISH packet the sender can use a Topic Alias.
+        The Topic Alias is described in section 3.3.2.3.4.
+        It is a Protocol Error if the Topic Name is zero length and
+        there is no Topic Alias.
+    """
+
     TYPE: int = 3
     PROPERTY: PropertyCodec = PropertyCodec(
         (
@@ -464,7 +472,7 @@ class PublishPacket(Packet):
         dup: bool,
         qos: int,
         retain: bool,
-        topic: str | None = None,
+        topic: str = "",
         packet_id: int | None = None,
         properties: DictStrObject | None = None,
         payload: bytes | bytearray = b"",
@@ -472,7 +480,7 @@ class PublishPacket(Packet):
         self._dup: bool = dup
         self._qos: int = qos
         self._retain: bool = retain
-        self._topic: str | None = topic
+        self._topic: str = topic
         self._packet_id: int | None = packet_id
 
         self._properties: DictStrObject
@@ -492,9 +500,8 @@ class PublishPacket(Packet):
         fixed_header |= int(self._retain)
 
         variable_header: bytearray = bytearray()
-        if self._topic is not None:
-            variable_header.extend(StrCodec.encode(self._topic))
 
+        variable_header.extend(StrCodec.encode(self._topic))
         if 0 < self._qos:
             if self._packet_id is None:
                 raise ValueError()
