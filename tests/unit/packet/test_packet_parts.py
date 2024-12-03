@@ -1,7 +1,7 @@
 import pytest
 
 from mio_mqtt.packet.codec import StrCodec
-from mio_mqtt.packet.sub_packet import Subscription, WillMessage
+from mio_mqtt.packet.packet_parts import Subscription, WillMessage
 
 
 class TestWillMessage:

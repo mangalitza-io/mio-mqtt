@@ -212,7 +212,6 @@ class PropertyCodec:
                 if isinstance(before_val, list) is True:
                     cast(list[object], before_val).append(d_val)
                 else:
-                    print(f"{[d_val] = }")
                     res[name] = [before_val, d_val]
 
         return b_length + length, res

@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from mio_mqtt.types import All, Buffer, DictStrObject, Slots
 
 from .codec import OneByteCodec, StrCodec, TwoByteCodec, VariableByteCodec
+from .packet_parts import Subscription, WillMessage
 from .properties import (
     ASSIGNED_CLIENT_IDENTIFIER,
     AUTH_DATA,
@@ -82,7 +83,6 @@ from .reason_codes import (
     ReasonCode,
     ReasonCodes,
 )
-from .sub_packet import Subscription, WillMessage
 
 __all__: All = (
     "Packet",
@@ -218,11 +218,82 @@ class ConnectPacket(Packet):
         self._will_message: WillMessage | None = will_message
 
     @classmethod
-    def from_bytes(  # type: ignore[empty-body]
+    def from_bytes(
         cls, fixed_byte: int, packet_body: bytearray
     ) -> "ConnectPacket":
-        # TODO fix this.
-        pass
+        offset: int = 0
+        protocol_name_length, protocol_name = StrCodec.decode(packet_body[0:])
+        offset += protocol_name_length
+
+        mqtt_ver_length, mqtt_ver = OneByteCodec.decode(packet_body[offset:])
+        offset += mqtt_ver_length
+
+        connect_flags: int = packet_body[offset]
+        offset += 1
+
+        keep_alive_length, keep_alive = TwoByteCodec.decode(
+            packet_body[offset:]
+        )
+        offset += keep_alive_length
+
+        properties_length, properties = cls.PROPERTY.decode_for_name(
+            packet_body[offset:]
+        )
+        offset += properties_length
+
+        clean_start: bool = bool(connect_flags & 0b00000010)
+        will_flag: bool = bool(connect_flags & 0b00000100)
+        will_retain: bool = bool(connect_flags & 0b00100000)
+        will_qos: int = (connect_flags & 0b00011000) >> 3
+
+        username_flag = bool(connect_flags & 0b10000000)
+        password_flag = bool(connect_flags & 0b01000000)
+
+        client_id_length, client_id = StrCodec.decode(packet_body[offset:])
+        offset += client_id_length
+
+        will_message: WillMessage | None = None
+        if will_flag is True:
+            will_properties_length, will_properties = (
+                WillMessage.PROPERTY.decode_for_name(packet_body[offset:])
+            )
+            offset += will_properties_length
+
+            will_topic_length, will_topic = StrCodec.decode(
+                packet_body[offset:]
+            )
+            offset += will_topic_length
+
+            will_msg_length, will_msg = StrCodec.decode(packet_body[offset:])
+            offset += will_msg_length
+
+            will_message = WillMessage(
+                topic=will_topic,
+                message=will_msg,
+                qos=will_qos,
+                retain=will_retain,
+                properties=will_properties,
+            )
+
+        username: str | None = None
+        if username_flag is True:
+            username_length, username = StrCodec.decode(packet_body[offset:])
+            offset += username_length
+
+        password: str | None = None
+        if password_flag is True:
+            password_length, password = StrCodec.decode(packet_body[offset:])
+            offset += password_length
+
+        return cls(
+            client_id=client_id,
+            clean_start=clean_start,
+            username=username,
+            password=password,
+            keep_alive=keep_alive,
+            properties=properties,
+            will_message=will_message,
+        )
 
     def to_bytes(self) -> bytearray:
         packet_type: int = self.TYPE << 4
@@ -317,9 +388,9 @@ class ConnAckPacket(Packet):
         )
     )
     __slots__: Slots = (
-        "session_present",
-        "reason_code",
-        "properties",
+        "_session_present",
+        "_reason_code",
+        "_properties",
     )
 
     def __init__(
@@ -328,14 +399,14 @@ class ConnAckPacket(Packet):
         reason_code: ReasonCode,
         properties: DictStrObject | None = None,
     ) -> None:
-        self.session_present: bool = session_present
-        self.reason_code: ReasonCode = reason_code
+        self._session_present: bool = session_present
+        self._reason_code: ReasonCode = reason_code
 
-        self.properties: DictStrObject
+        self._properties: DictStrObject
         if properties is None:
-            self.properties = {}
+            self._properties = {}
         else:
-            self.properties = properties
+            self._properties = properties
 
     @classmethod
     def from_bytes(
@@ -353,10 +424,25 @@ class ConnAckPacket(Packet):
         )
 
     def to_bytes(self) -> bytearray:
-        return bytearray()
+        packet_type: int = self.TYPE << 4
+        variable_header: bytearray = bytearray()
+        variable_header.append(int(self._session_present))
+        variable_header.append(self._reason_code.code)
+        variable_header.extend(self.PROPERTY.encoded_by_name(self._properties))
+        return self._to_packet(
+            first_byte=packet_type, variable_header=variable_header
+        )
 
 
 class PublishPacket(Packet):
+    """
+    1542
+        To reduce the size of the PUBLISH packet the sender can use a Topic Alias.
+        The Topic Alias is described in section 3.3.2.3.4.
+        It is a Protocol Error if the Topic Name is zero length and
+        there is no Topic Alias.
+    """
+
     TYPE: int = 3
     PROPERTY: PropertyCodec = PropertyCodec(
         (
@@ -386,7 +472,7 @@ class PublishPacket(Packet):
         dup: bool,
         qos: int,
         retain: bool,
-        topic: str | None = None,
+        topic: str = "",
         packet_id: int | None = None,
         properties: DictStrObject | None = None,
         payload: bytes | bytearray = b"",
@@ -394,7 +480,7 @@ class PublishPacket(Packet):
         self._dup: bool = dup
         self._qos: int = qos
         self._retain: bool = retain
-        self._topic: str | None = topic
+        self._topic: str = topic
         self._packet_id: int | None = packet_id
 
         self._properties: DictStrObject
@@ -414,9 +500,8 @@ class PublishPacket(Packet):
         fixed_header |= int(self._retain)
 
         variable_header: bytearray = bytearray()
-        if self._topic is not None:
-            variable_header.extend(StrCodec.encode(self._topic))
 
+        variable_header.extend(StrCodec.encode(self._topic))
         if 0 < self._qos:
             if self._packet_id is None:
                 raise ValueError()
@@ -778,7 +863,8 @@ class SubscribePacket(Packet):
         properties: DictStrObject | None = None,
     ) -> None:
         self._packet_id: int = packet_id
-        self._topics: Iterable[Subscription] = tuple(topics)
+        self._topics: tuple[Subscription, ...] = tuple(topics)
+        self._properties: DictStrObject
         if properties is not None:
             self._properties = properties
         else:
@@ -867,7 +953,7 @@ class SubAckPacket(Packet):
     ) -> None:
         self._packet_id: int = packet_id
         self._reason_codes: tuple[ReasonCode, ...] = tuple(reason_codes)
-
+        self._properties: DictStrObject
         if properties is not None:
             self._properties = properties
         else:
@@ -932,7 +1018,7 @@ class UnSubscribePacket(Packet):
         properties: DictStrObject | None = None,
     ) -> None:
         self._packet_id: int = packet_id
-        self._topics: Iterable[str] = tuple(topics)
+        self._topics: tuple[str, ...] = tuple(topics)
         if properties is not None:
             self._properties = properties
         else:
