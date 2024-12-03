@@ -509,7 +509,6 @@ class TestPubAckPacket:
             properties=cls.properties,
         )
 
-
     def test_pub_ack_packet_init_defaults(self) -> None:
         assert self.packet._packet_id == self.packet_id
         assert self.packet._reason_code == self.reason_code
@@ -519,7 +518,6 @@ class TestPubAckPacket:
         assert self.packet_with_properties._packet_id == self.packet_id
         assert self.packet_with_properties._reason_code == self.reason_code
         assert self.packet_with_properties._properties == self.properties
-
 
     def test_pub_ack_packet_to_bytes_basic(self) -> None:
         packet_bytes: bytearray = self.packet.to_bytes()
@@ -554,9 +552,17 @@ class TestPubAckPacket:
             PubAckPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == self.packet_with_properties._packet_id
-        assert reconstructed._reason_code == self.packet_with_properties._reason_code
-        assert reconstructed._properties == self.packet_with_properties._properties
+        assert (
+            reconstructed._packet_id == self.packet_with_properties._packet_id
+        )
+        assert (
+            reconstructed._reason_code
+            == self.packet_with_properties._reason_code
+        )
+        assert (
+            reconstructed._properties
+            == self.packet_with_properties._properties
+        )
 
     def test_pub_ack_packet_invalid_reason_code(self) -> None:
         invalid_reason_code = 255
@@ -636,9 +642,17 @@ class TestPubRecPacket:
             PubRecPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == self.packet_with_properties._packet_id
-        assert reconstructed._reason_code == self.packet_with_properties._reason_code
-        assert reconstructed._properties == self.packet_with_properties._properties
+        assert (
+            reconstructed._packet_id == self.packet_with_properties._packet_id
+        )
+        assert (
+            reconstructed._reason_code
+            == self.packet_with_properties._reason_code
+        )
+        assert (
+            reconstructed._properties
+            == self.packet_with_properties._properties
+        )
 
     def test_pub_rec_packet_invalid_reason_code(self) -> None:
         invalid_reason_code: int = 255
@@ -718,9 +732,17 @@ class TestPubRelPacket:
             PubRelPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == self.packet_with_properties._packet_id
-        assert reconstructed._reason_code == self.packet_with_properties._reason_code
-        assert reconstructed._properties == self.packet_with_properties._properties
+        assert (
+            reconstructed._packet_id == self.packet_with_properties._packet_id
+        )
+        assert (
+            reconstructed._reason_code
+            == self.packet_with_properties._reason_code
+        )
+        assert (
+            reconstructed._properties
+            == self.packet_with_properties._properties
+        )
 
     def test_pub_rel_packet_invalid_reason_code(self) -> None:
         invalid_reason_code: int = 255
@@ -796,15 +818,21 @@ class TestPubCompPacket:
         assert reconstructed._properties == self.packet._properties
 
     def test_pub_comp_packet_from_bytes_with_properties(self) -> None:
-
         reconstructed: PubCompPacket = cast(
             PubCompPacket, to_byte_reconstruct(self.packet_with_properties)
         )
 
-        assert reconstructed._packet_id == self.packet_with_properties._packet_id
-        assert reconstructed._reason_code == self.packet_with_properties._reason_code
-        assert reconstructed._properties == self.packet_with_properties._properties
-
+        assert (
+            reconstructed._packet_id == self.packet_with_properties._packet_id
+        )
+        assert (
+            reconstructed._reason_code
+            == self.packet_with_properties._reason_code
+        )
+        assert (
+            reconstructed._properties
+            == self.packet_with_properties._properties
+        )
 
     def test_pub_comp_packet_invalid_reason_code(self) -> None:
         invalid_reason_code: int = 255
@@ -871,7 +899,6 @@ class TestSubscribePacket:
             properties=cls.properties,
         )
 
-
     def test_subscribe_packet_init_defaults(self) -> None:
         assert self.packet._packet_id == self.packet_id
         assert len(self.packet._topics) == len(self.topics_one)
@@ -916,8 +943,12 @@ class TestSubscribePacket:
             SubscribePacket, to_byte_reconstruct(self.packet_multiple_topics)
         )
 
-        assert reconstructed._packet_id == self.packet_multiple_topics._packet_id
-        assert len(reconstructed._topics) == len(self.packet_multiple_topics._topics)
+        assert (
+            reconstructed._packet_id == self.packet_multiple_topics._packet_id
+        )
+        assert len(reconstructed._topics) == len(
+            self.packet_multiple_topics._topics
+        )
         for i, topic in enumerate(self.packet_multiple_topics._topics):
             assert reconstructed._topics[i]._topic == topic._topic
             assert reconstructed._topics[i]._qos == topic._qos
@@ -957,11 +988,10 @@ class TestSubAckPacket:
             reason_codes=cls.reason_codes,
         )
         cls.packet_with_multiple_reason_codes_properties = SubAckPacket(
-                packet_id=cls.packet_id,
-                reason_codes=cls.reason_codes,
-                properties=cls.properties,
-            )
-
+            packet_id=cls.packet_id,
+            reason_codes=cls.reason_codes,
+            properties=cls.properties,
+        )
 
     def test_sub_ack_packet_init_defaults(self) -> None:
         assert self.packet._packet_id == self.packet_id
