@@ -10,4 +10,6 @@ Buffer: TypeAlias = bytes | bytearray | memoryview
 SockOpt: TypeAlias = tuple[int, int, int | bytes]
 SockOpts: TypeAlias = tuple[SockOpt, ...]
 Address: TypeAlias = tuple[object, ...] | str | bytes
+
+DictStrObjectOrNone: TypeAlias = DictStrObject | None
 AbstractEventLoopOrNone: TypeAlias = AbstractEventLoop | None

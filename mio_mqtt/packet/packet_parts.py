@@ -9,7 +9,13 @@ from mio_mqtt.packet.properties import (
     WILL_DELAY_INTERVAL,
     PropertyCodec,
 )
-from mio_mqtt.types import All, DictStrObject, Length, Slots
+from mio_mqtt.types import (
+    All,
+    DictStrObject,
+    DictStrObjectOrNone,
+    Length,
+    Slots,
+)
 
 __all__: All = (
     "WillMessage",
@@ -46,13 +52,18 @@ class WillMessage:
         message: str,
         qos: int = DEFAULT_QOS,
         retain: bool = DEFAULT_RETAIN,
-        properties: DictStrObject = {},
+        properties: DictStrObjectOrNone = None,
     ) -> None:
         self.topic: str = topic
         self.message: str = message
         self.qos: int = qos
         self.retain: bool = retain
-        self.properties: DictStrObject = properties
+
+        self.properties: DictStrObject
+        if properties is not None:
+            self.properties = properties
+        else:
+            self.properties = {}
 
         if self.qos not in self.ALLOWED_QOS:
             raise ValueError()
@@ -125,12 +136,6 @@ class Subscription:
         no_local: bool = bool((subscription_options >> 2) & 0b1)
         retain_as_published: bool = bool((subscription_options >> 3) & 0b1)
         retain_handling: int = (subscription_options >> 4) & 0b11
-        print(f"{subscription_options = }")
-        print(f"{topic = }")
-        print(f"{qos = }")
-        print(f"{no_local = }")
-        print(f"{retain_as_published = }")
-        print(f"{retain_handling = }")
         return offset + 1, cls(
             topic=topic,
             qos=qos,
