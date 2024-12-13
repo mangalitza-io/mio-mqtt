@@ -1,13 +1,7 @@
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Callable
-from typing import Generic, TypeAlias, TypeVar
-
-from mio_mqtt.packet.packet import Packet
+from typing import Generic, TypeVar
 
 _T = TypeVar("_T")
-
-Handler: TypeAlias = Callable[[Packet], Awaitable[None]]
-Handlers: TypeAlias = list[Handler]
 
 
 class Router(Generic[_T], metaclass=ABCMeta):
