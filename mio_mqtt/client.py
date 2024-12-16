@@ -285,7 +285,7 @@ class MQTTv5Client(_BaseClient):
     def with_unix(cls, addr: str) -> "MQTTv5Client":
         if sys.platform == "win32":
             raise NotImplementedError()
-        return cls(
+        return cls(  # type:ignore[unreachable,unused-ignore]
             addr=addr,
-            transport_type=MQTTUnixStreamTransport,
+            transport_type=MQTTUnixStreamTransport,  # type:ignore[name-defined,unused-ignore]
         )
