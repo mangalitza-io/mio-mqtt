@@ -281,11 +281,11 @@ class MQTTv5Client(_BaseClient):
             transport_type=MQTTInet6StreamTransport,
         )
 
-    if sys.platform != "win32":
-
-        @classmethod
-        def with_unix(cls, addr: str) -> "MQTTv5Client":
-            return cls(
-                addr=addr,
-                transport_type=MQTTUnixStreamTransport,
-            )
+    @classmethod
+    def with_unix(cls, addr: str) -> "MQTTv5Client":
+        if sys.platform == "win32":
+            raise NotImplementedError()
+        return cls(
+            addr=addr,
+            transport_type=MQTTUnixStreamTransport,
+        )
