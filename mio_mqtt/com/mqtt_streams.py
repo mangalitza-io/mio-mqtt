@@ -1,42 +1,28 @@
+import sys
 from asyncio import (
     AbstractEventLoop,
+    Future,
     StreamReader,
     StreamWriter,
     Task,
     get_running_loop,
 )
-from collections.abc import Callable
-from typing import Awaitable, Type, TypeAlias
+from typing import Type
 
-from mio_mqtt.packet.packet import (
-    AuthPacket,
-    ConnectPacket,
-    DisconnectPacket,
-    Packet,
-    PingReqPacket,
-    PubAckPacket,
-    PubCompPacket,
-    PublishPacket,
-    PubRecPacket,
-    PubRelPacket,
-    SubscribePacket,
-    UnSubscribePacket,
-)
+from mio_mqtt.packet.packet import Packet
 from mio_mqtt.types import Address
 
-from .tcp_sock import TcpSocket
-
-_ReceiverCallback: TypeAlias = Callable[[Packet], Awaitable[None]]
-_PacketTypeMap: TypeAlias = dict[int, Type[Packet]]
+from .mqtt_transport import MQTTTransport, ReceiverCallback
+from .tcp_sock import TCPInet6Socket, TCPInetSocket, TcpSocket
 
 
-class _MqttStreamClient:
+class _MQTTStreamTransport(MQTTTransport):
+    SOCKET_TYPE: Type[TcpSocket]
+
     def __init__(
-        self, addr: Address, cb: _ReceiverCallback, sock_type: Type[TcpSocket]
+        self, addr: Address, cb: ReceiverCallback, err_fut: Future[None]
     ) -> None:
-        self._addr: Address = addr
-        self._cb: _ReceiverCallback = cb
-        self._sock_type: Type[TcpSocket] = sock_type
+        super().__init__(addr=addr, cb=cb, err_fut=err_fut)
 
         self._loop: AbstractEventLoop = None  # type: ignore[assignment]
         self._sock: TcpSocket = None  # type: ignore[assignment]
@@ -44,10 +30,6 @@ class _MqttStreamClient:
         self._s_writer: StreamWriter = None  # type: ignore[assignment]
         self._reader_loop_task: Task[None] = None  # type: ignore[assignment]
 
-        self._packet_type_map: _PacketTypeMap = {
-            packet.TYPE: packet  # type: ignore[type-abstract]
-            for packet in Packet.__subclasses__()
-        }
         self._read_tasks: set[Task[None]] = set()
 
     async def _read_loop(self) -> None:
@@ -100,7 +82,7 @@ class _MqttStreamClient:
     async def open(self) -> None:
         if self._loop is None:
             self._loop = get_running_loop()  # type: ignore[unreachable]
-        self._sock = self._sock_type()
+        self._sock = self.SOCKET_TYPE()
         (
             self._s_reader,
             self._s_writer,
@@ -126,53 +108,15 @@ class _MqttStreamClient:
         self._reader_loop_task = None  # type: ignore[assignment]
 
 
-class MqttStreamClient:
-    def __init__(self, addr: Address, sock_type: Type[TcpSocket]) -> None:
-        self._addr: Address = addr
-        self._sock_type: Type[TcpSocket] = sock_type
+class MQTTInetStreamTransport(_MQTTStreamTransport):
+    SOCKET_TYPE = TCPInetSocket
 
-        self._is_open: bool = False
 
-        self._msc: _MqttStreamClient = _MqttStreamClient(
-            addr=addr,
-            cb=self._handle_inc_packets,
-            sock_type=sock_type,
-        )
+class MQTTInet6StreamTransport(_MQTTStreamTransport):
+    SOCKET_TYPE = TCPInet6Socket
 
-    async def _handle_inc_packets(self, packet: Packet) -> None:
-        print(f"{self._handle_inc_packets.__qualname__}.{packet = }")
 
-    async def send_connect(self, packet: ConnectPacket) -> None:
-        if self._is_open is False:
-            await self._msc.open()
-        return await self._msc.send(packet)
+if sys.platform != "win32":
 
-    async def send_publish(self, packet: PublishPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_puback(self, packet: PubAckPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_pubrec(self, packet: PubRecPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_pubrel(self, packet: PubRelPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_pubcomp(self, packet: PubCompPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_subscribe(self, packet: SubscribePacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_unsubscribe(self, packet: UnSubscribePacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_pingreq(self, packet: PingReqPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_disconnect(self, packet: DisconnectPacket) -> None:
-        return await self._msc.send(packet)
-
-    async def send_auth(self, packet: AuthPacket) -> None:
-        return await self._msc.send(packet)
+    class MQTTUnixStreamTransport(_MQTTStreamTransport):
+        SOCKET_TYPE = TCPInet6Socket
