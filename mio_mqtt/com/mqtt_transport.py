@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-from asyncio import Future
 from collections.abc import Awaitable, Callable
 from typing import Type, TypeAlias
 
@@ -14,16 +13,12 @@ class MQTTTransport(metaclass=ABCMeta):
     __slots__: Slots = (
         "_addr",
         "_cb",
-        "_err_fut",
         "_packet_type_map",
     )
 
-    def __init__(
-        self, addr: Address, cb: ReceiverCallback, err_fut: Future[None]
-    ) -> None:
+    def __init__(self, addr: Address, cb: ReceiverCallback) -> None:
         self._addr: Address = addr
         self._cb: ReceiverCallback = cb
-        self._err_fut: Future[None] = err_fut
 
         self._packet_type_map: PacketTypeMap = self._gather_packet_type_map()
 
@@ -52,4 +47,8 @@ class MQTTTransport(metaclass=ABCMeta):
 
     @abstractmethod
     async def send(self, packet: Packet) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def wait_closed(self) -> None:
         raise NotImplementedError()

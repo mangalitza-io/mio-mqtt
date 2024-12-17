@@ -1,7 +1,6 @@
 import sys
 from asyncio import (
     AbstractEventLoop,
-    Future,
     StreamReader,
     StreamWriter,
     Task,
@@ -20,9 +19,11 @@ class _MQTTStreamTransport(MQTTTransport):
     SOCKET_TYPE: Type[TcpSocket]
 
     def __init__(
-        self, addr: Address, cb: ReceiverCallback, err_fut: Future[None]
+        self,
+        addr: Address,
+        cb: ReceiverCallback,
     ) -> None:
-        super().__init__(addr=addr, cb=cb, err_fut=err_fut)
+        super().__init__(addr=addr, cb=cb)
 
         self._loop: AbstractEventLoop = None  # type: ignore[assignment]
         self._sock: TcpSocket = None  # type: ignore[assignment]
@@ -100,6 +101,9 @@ class _MQTTStreamTransport(MQTTTransport):
         ):
             self._reader_loop_task.cancel()
         self._reset()
+
+    async def wait_closed(self) -> None:
+        return await self._s_writer.wait_closed()
 
     def _reset(self) -> None:
         self._sock = None  # type: ignore[assignment]
