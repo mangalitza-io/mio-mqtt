@@ -1,3 +1,5 @@
+import os
+import stat
 import sys
 from abc import ABCMeta, abstractmethod
 from asyncio import (
@@ -17,12 +19,24 @@ from mio_mqtt.types import Address, All, Slots, SockOpts
 from .sock_opts import _SocketOpts
 
 __all__: All = (
+    "is_valid_unix_socket_addr",
     "ProtocolFactory",
     "TcpSocket",
     "TCPInetSocket",
     "TCPInet6Socket",
 )
 ProtocolFactory: TypeAlias = Callable[[], Protocol]
+
+
+def is_valid_unix_socket_addr(addr: Address) -> bool:
+    if not isinstance(addr, str):
+        return False
+    if not (0 < len(addr) < 108):
+        return False
+    st: os.stat_result = os.stat(addr)
+    if not stat.S_ISSOCK(st.st_mode):
+        return False
+    return True
 
 
 class TcpSocket(socket, metaclass=ABCMeta):

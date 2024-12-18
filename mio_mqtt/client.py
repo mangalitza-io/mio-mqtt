@@ -2,12 +2,12 @@ import sys
 from asyncio import (
     AbstractEventLoop,
     Event,
-    Future,
     TimeoutError,
     get_running_loop,
     sleep,
     wait_for,
 )
+from ipaddress import AddressValueError, IPv4Address, IPv6Address
 from time import monotonic_ns
 from typing import Type
 
@@ -15,9 +15,12 @@ from mio_mqtt.com.mqtt_streams import (
     MQTTInet6StreamTransport,
     MQTTInetStreamTransport,
 )
+from mio_mqtt.com.tcp_sock import is_valid_unix_socket_addr
+from mio_mqtt.errors import InvalidAddress
 
 if sys.platform != "win32":
     from mio_mqtt.com.mqtt_streams import MQTTUnixStreamTransport
+
 from mio_mqtt.com.mqtt_transport import MQTTTransport, ReceiverCallback
 from mio_mqtt.enhanced_packets import Connect, Message
 from mio_mqtt.packet.packet import (
@@ -55,7 +58,6 @@ class _BaseClient:
 
         self._loop: AbstractEventLoop = None  # type: ignore[assignment]
         self._transport: MQTTTransport = None  # type: ignore[assignment]
-        self._connection_err: Future[None] = None  # type: ignore[assignment]
         self._connect: Connect = None  # type: ignore[assignment]
 
         self._recv_handlers: dict[int, ReceiverCallback] = {
@@ -85,9 +87,11 @@ class _BaseClient:
         match packet._qos:
             case 0:
                 # TODO pass over the Message
+                # Received QoS 0 PublishPacket
                 ...
             case 1:
                 # TODO extend
+                # Received QoS 1 PublishPacket
                 if packet._packet_id is None:
                     raise RuntimeError()
                 pub_ack: PubAckPacket = PubAckPacket(
@@ -97,6 +101,7 @@ class _BaseClient:
                 # TODO pass over the Message
             case 2:
                 # TODO extend
+                # Received QoS 2 PublishPacket
                 if packet._packet_id is None:
                     raise RuntimeError()
                 pub_rec: PubRecPacket = PubRecPacket(
@@ -109,6 +114,7 @@ class _BaseClient:
 
     async def _handle_puback(self, packet: PubAckPacket) -> None:
         # TODO Qos 1 message was successful sent
+        # Received QoS 1 PubAckPacket, so sent Qos 1 Publish packet is acked
         ...
 
     async def _handle_pubrec(self, packet: PubRecPacket) -> None:
@@ -171,7 +177,7 @@ class _BaseClient:
                     )
                 except TimeoutError:
                     # TODO fix this, for reconnect
-                    await self.close()
+                    await self._close()
                     return None
                 else:
                     self._keep_alive_waiter.clear()
@@ -183,30 +189,21 @@ class _BaseClient:
         return await self._transport.send(packet)
 
     def _reset(self) -> None:
-        self._connection_err = None  # type: ignore[assignment]
         self._transport = None  # type: ignore[assignment]
 
     async def _reconnect(self) -> None: ...
 
-    async def connect(self) -> None:
+    async def _connect(self) -> None:
         if self._loop is None:
             self._loop = get_running_loop()  # type: ignore[unreachable]
-        if self._connection_err is None:
-            self._connection_err = self._loop.create_future()  # type: ignore[unreachable]
         if self._transport is None:
             self._transport = self._transport_type(  # type: ignore[unreachable]
                 addr=self._addr,
                 cb=self._on_packet,
-                err_fut=self._connection_err,
             )
         await self._transport.open()
 
-    async def close(self) -> None:
-        if (
-            isinstance(self._connection_err, Future) is True
-            and not self._connection_err.cancelled()
-        ):
-            self._connection_err.cancel()
+    async def _close(self) -> None:
         if isinstance(self._transport, MQTTTransport) is True:
             await self._transport.close()
 
@@ -219,73 +216,55 @@ class MQTTv5Client(_BaseClient):
 
     @classmethod
     def with_tcp(cls, addr: Address) -> "MQTTv5Client":
-        if isinstance(addr, tuple):
-            try:
-                host, port = addr
-            except ValueError:
-                pass
-            else:
-                if not isinstance(host, str):
-                    raise TypeError()
-                if not isinstance(port, int):
-                    raise TypeError()
-                return cls.with_inet(
-                    host=host,
-                    port=port,
-                )
-            try:
-                host, port, flow_info, scope_id = addr
-            except ValueError:
-                pass
-            else:
-                if not isinstance(host, str):
-                    raise TypeError()
-                if not isinstance(port, int):
-                    raise TypeError()
-                if not isinstance(flow_info, int):
-                    raise TypeError()
-                if not isinstance(scope_id, int):
-                    raise TypeError()
-                return cls.with_inet6(
-                    host=host,
-                    port=port,
-                    flow_info=flow_info,
-                    scope_id=scope_id,
-                )
-        elif isinstance(addr, str) and sys.platform != "win32":
-            return cls.with_unix(
-                addr=addr,
-            )
+        try:
+            return cls.with_inet(addr)
+        except InvalidAddress:
+            pass
+        try:
+            return cls.with_inet6(addr)
+        except InvalidAddress:
+            pass
+        try:
+            return cls.with_unix(addr)
+        except InvalidAddress:
+            pass
 
         raise TypeError()
 
     @classmethod
-    def with_inet(cls, host: str, port: int) -> "MQTTv5Client":
-        addr: Address = (host, port)
+    def with_inet(cls, addr: Address) -> "MQTTv5Client":
+        try:
+            IPv4Address(address=addr)
+        except AddressValueError:
+            raise InvalidAddress()
         return cls(
             addr=addr,
             transport_type=MQTTInetStreamTransport,
         )
 
     @classmethod
-    def with_inet6(
-        cls,
-        host: str,
-        port: int,
-        flow_info: int,
-        scope_id: int,
-    ) -> "MQTTv5Client":
-        addr: Address = (host, port, flow_info, scope_id)
+    def with_inet6(cls, addr: Address) -> "MQTTv5Client":
+        try:
+            IPv6Address(address=addr)
+        except AddressValueError:
+            raise InvalidAddress()
         return cls(
             addr=addr,
             transport_type=MQTTInet6StreamTransport,
         )
 
     @classmethod
-    def with_unix(cls, addr: str) -> "MQTTv5Client":
+    def with_unix(cls, addr: Address) -> "MQTTv5Client":
         if sys.platform == "win32":
             raise NotImplementedError()
+        if is_valid_unix_socket_addr(addr) is False:
+            raise InvalidAddress()
         return cls(  # type:ignore[unreachable,unused-ignore]
             addr=addr,
             transport_type=MQTTUnixStreamTransport,  # type:ignore[name-defined,unused-ignore]
         )
+
+    async def connect(self) -> None: ...
+    async def close(self) -> None: ...
+    async def publish(self) -> None: ...
+    async def subscribe(self) -> None: ...
