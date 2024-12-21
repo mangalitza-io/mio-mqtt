@@ -1,8 +1,16 @@
 # mypy: disable-error-code="unused-ignore, import-untyped, misc"
 from typing import Protocol, Type, TypeAlias, cast
 
-from mio_mqtt.types import Slots
+from mio_mqtt.types import Slots, All
 
+__all__: All = (
+    "JsonType"
+    "JsonError"
+    "JsonDecodeError"
+    "JsonEncodeError"
+    "JsonLib"
+    "json_lib"
+)
 JsonType: TypeAlias = (
     dict[str, "JsonType"] | list["JsonType"] | str | int | float | bool | None
 )
@@ -157,3 +165,5 @@ class JsonLib:
             decode_error=(JSONDecodeError, TypeError),
             encode_error=(TypeError, OverflowError),
         )
+
+json_lib: JsonLib = JsonLib()
