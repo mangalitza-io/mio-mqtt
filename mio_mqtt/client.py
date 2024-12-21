@@ -7,7 +7,6 @@ from asyncio import (
     sleep,
     wait_for,
 )
-from ipaddress import AddressValueError, IPv4Address, IPv6Address
 from time import monotonic_ns
 from typing import Type
 
@@ -15,8 +14,7 @@ from mio_mqtt.com.mqtt_streams import (
     MQTTInet6StreamTransport,
     MQTTInetStreamTransport,
 )
-from mio_mqtt.com.tcp_sock import is_valid_unix_socket_addr
-from mio_mqtt.errors import InvalidAddress
+from mio_mqtt.packet import WillMessage
 
 if sys.platform != "win32":
     from mio_mqtt.com.mqtt_streams import MQTTUnixStreamTransport
@@ -39,7 +37,7 @@ from mio_mqtt.packet.packet import (
     UnSubAckPacket,
 )
 from mio_mqtt.packet.reason_codes import SUCCESS
-from mio_mqtt.types import Address
+from mio_mqtt.types import Address, DictStrObject
 
 
 class _BaseClient:
@@ -58,7 +56,7 @@ class _BaseClient:
 
         self._loop: AbstractEventLoop = None  # type: ignore[assignment]
         self._transport: MQTTTransport = None  # type: ignore[assignment]
-        self._connect: Connect = None  # type: ignore[assignment]
+        self._connect_packet: Connect = None  # type: ignore[assignment]
 
         self._recv_handlers: dict[int, ReceiverCallback] = {
             ConnAckPacket.TYPE: self._handle_connack,  # type: ignore[dict-item]
@@ -77,10 +75,10 @@ class _BaseClient:
         self._incoming_messages: dict[int, Message] = {}
 
     async def _handle_connack(self, packet: ConnAckPacket) -> None:
-        if self._connect is not None:
+        if self._connect_packet is None:
             raise RuntimeError()
-        self._connect._conn_ack = packet  # type: ignore[unreachable]
-        self._connect._conn_ack_waiter.set()
+        self._connect_packet._conn_ack = packet
+        self._connect_packet._conn_ack_waiter.set()
 
     async def _handle_publish(self, packet: PublishPacket) -> None:
         # from server
@@ -150,6 +148,7 @@ class _BaseClient:
     async def _handle_auth(self, packet: AuthPacket) -> None: ...
 
     async def _on_packet(self, packet: Packet) -> None:
+        print(f"{self._on_packet.__qualname__}.{packet = }")
         try:
             recv_callback = self._recv_handlers[packet.TYPE]
         except KeyError:
@@ -215,28 +214,7 @@ class MQTTv5Client(_BaseClient):
         super().__init__(addr=addr, transport_type=transport_type)
 
     @classmethod
-    def with_tcp(cls, addr: Address) -> "MQTTv5Client":
-        try:
-            return cls.with_inet(addr)
-        except InvalidAddress:
-            pass
-        try:
-            return cls.with_inet6(addr)
-        except InvalidAddress:
-            pass
-        try:
-            return cls.with_unix(addr)
-        except InvalidAddress:
-            pass
-
-        raise TypeError()
-
-    @classmethod
     def with_inet(cls, addr: Address) -> "MQTTv5Client":
-        try:
-            IPv4Address(address=addr)
-        except AddressValueError:
-            raise InvalidAddress()
         return cls(
             addr=addr,
             transport_type=MQTTInetStreamTransport,
@@ -244,10 +222,6 @@ class MQTTv5Client(_BaseClient):
 
     @classmethod
     def with_inet6(cls, addr: Address) -> "MQTTv5Client":
-        try:
-            IPv6Address(address=addr)
-        except AddressValueError:
-            raise InvalidAddress()
         return cls(
             addr=addr,
             transport_type=MQTTInet6StreamTransport,
@@ -257,14 +231,35 @@ class MQTTv5Client(_BaseClient):
     def with_unix(cls, addr: Address) -> "MQTTv5Client":
         if sys.platform == "win32":
             raise NotImplementedError()
-        if is_valid_unix_socket_addr(addr) is False:
-            raise InvalidAddress()
         return cls(  # type:ignore[unreachable,unused-ignore]
             addr=addr,
             transport_type=MQTTUnixStreamTransport,  # type:ignore[name-defined,unused-ignore]
         )
 
-    async def connect(self) -> None: ...
-    async def close(self) -> None: ...
+    async def connect(
+        self,
+        client_id: str,
+        clean_start: bool = True,
+        username: str | None = None,
+        password: str | None = None,
+        keep_alive: int = 60,
+        properties: DictStrObject | None = None,
+        will_message: WillMessage | None = None,
+    ) -> None:
+        self._connect_packet = Connect(
+            client_id=client_id,
+            clean_start=clean_start,
+            username=username,
+            password=password,
+            keep_alive=keep_alive,
+            properties=properties,
+            will_message=will_message,
+        )
+        await self._connect()
+        await self._send_packet(packet=self._connect_packet)
+        await self._connect_packet._conn_ack_waiter.wait()
+
+    async def disconnect(self) -> None: ...
     async def publish(self) -> None: ...
     async def subscribe(self) -> None: ...
+    async def unsubscribe(self) -> None: ...
