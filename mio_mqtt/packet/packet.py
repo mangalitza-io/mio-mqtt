@@ -475,7 +475,7 @@ class PublishPacket(Packet):
         topic: str = "",
         packet_id: int | None = None,
         properties: DictStrObject | None = None,
-        payload: bytes | bytearray = b"",
+        payload: bytes | bytearray | memoryview = b"",
     ) -> None:
         self._dup: bool = dup
         self._qos: int = qos
@@ -488,7 +488,7 @@ class PublishPacket(Packet):
             self._properties = properties
         else:
             self._properties = {}
-        self._payload: bytes | bytearray = payload
+        self._payload: bytes | bytearray | memoryview = payload
 
         if self._qos not in self.ALLOWED_QOS:
             raise ValueError()
