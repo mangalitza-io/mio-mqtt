@@ -1,16 +1,19 @@
 # mypy: disable-error-code="unused-ignore, import-untyped, misc"
 from typing import Protocol, Type, TypeAlias, cast
 
-from mio_mqtt.types import Slots, All
+from mio_mqtt.types import All, Slots
 
 __all__: All = (
-    "JsonType"
-    "JsonError"
-    "JsonDecodeError"
-    "JsonEncodeError"
-    "JsonLib"
-    "json_lib"
+    "JsonType",
+    "JsonError",
+    "JsonDecodeError",
+    "JsonEncodeError",
+    "JsonLib",
+    "json_lib",
+    "dumps",
+    "loads",
 )
+
 JsonType: TypeAlias = (
     dict[str, "JsonType"] | list["JsonType"] | str | int | float | bool | None
 )
@@ -54,24 +57,32 @@ class JsonLib:
 
     dumps: _JsonDumps
     loads: _JsonLoads
+    __slots__: Slots = (
+        "dumps",
+        "loads",
+    )
 
     def __init__(self, json_codec: str | None = None) -> None:
         if json_codec is not None:
             self.loads, self.dumps = getattr(self, f"_get_{json_codec}")()
-        json_order_by_speed: tuple[str, ...] = (
-            "orjson",
-            "rapidjson",
-            "ujson",
-            "simplejson",
-            "json",
-        )
-        for json_codec in json_order_by_speed:
-            try:
-                self.loads, self.dumps = getattr(self, f"_get_{json_codec}")()
-            except (ImportError, ModuleNotFoundError):
-                continue
-            else:
-                break
+        elif json_codec is None:
+            json_order_by_speed: tuple[str, ...] = (
+                "orjson",
+                "rapidjson",
+                "ujson",
+                "simplejson",
+                "json",
+            )
+            for json_codec in json_order_by_speed:
+                try:
+                    self.loads, self.dumps = getattr(
+                        self, f"_get_{json_codec}"
+                    )()
+                except (ImportError, ModuleNotFoundError):
+                    continue
+                else:
+                    break
+
         if self.loads is None or self.dumps is None:
             raise AttributeError()
 
@@ -166,4 +177,7 @@ class JsonLib:
             encode_error=(TypeError, OverflowError),
         )
 
+
 json_lib: JsonLib = JsonLib()
+dumps: _JsonDumps = json_lib.dumps
+loads: _JsonLoads = json_lib.loads
