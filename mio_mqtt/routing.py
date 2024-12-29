@@ -1,10 +1,14 @@
 from abc import ABCMeta, abstractmethod
 from typing import Generic, TypeVar
 
+from mio_mqtt.types import Slots
+
 _T = TypeVar("_T")
 
 
 class Router(Generic[_T], metaclass=ABCMeta):
+    __slots__: Slots = tuple()
+
     @abstractmethod
     def insert(self, topic: str, item: _T) -> None:
         raise NotImplementedError()
@@ -16,6 +20,11 @@ class Router(Generic[_T], metaclass=ABCMeta):
 
 class RadixTrieRouter(Router[_T]):
     TOPIC_DELIMITER: str = "/"
+
+    __slots__: Slots = (
+        "_children",
+        "_handlers",
+    )
 
     def __init__(self) -> None:
         self._children: dict[str, RadixTrieRouter[_T]] = {}
