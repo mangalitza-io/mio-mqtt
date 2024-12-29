@@ -9,7 +9,7 @@ from asyncio import (
 from typing import Type
 
 from mio_mqtt.packet.packet import Packet
-from mio_mqtt.types import Address
+from mio_mqtt.types import Address, Slots
 
 from .mqtt_transport import MQTTTransport, ReceiverCallback
 from .tcp_sock import TCPInet6Socket, TCPInetSocket, TcpSocket
@@ -17,6 +17,14 @@ from .tcp_sock import TCPInet6Socket, TCPInetSocket, TcpSocket
 
 class _MQTTStreamTransport(MQTTTransport):
     SOCKET_TYPE: Type[TcpSocket]
+    __slots__: Slots = (
+        "_loop",
+        "_sock",
+        "_s_reader",
+        "_s_writer",
+        "_reader_loop_task",
+        "_read_tasks",
+    )
 
     def __init__(
         self,
@@ -114,13 +122,17 @@ class _MQTTStreamTransport(MQTTTransport):
 
 class MQTTInetStreamTransport(_MQTTStreamTransport):
     SOCKET_TYPE = TCPInetSocket
+    __slots__: Slots = tuple()
 
 
 class MQTTInet6StreamTransport(_MQTTStreamTransport):
     SOCKET_TYPE = TCPInet6Socket
+    __slots__: Slots = tuple()
 
 
 if sys.platform != "win32":
+    from .tcp_sock import TCPUnixSocket
 
     class MQTTUnixStreamTransport(_MQTTStreamTransport):
-        SOCKET_TYPE = TCPInet6Socket
+        SOCKET_TYPE = TCPUnixSocket
+        __slots__: Slots = tuple()
